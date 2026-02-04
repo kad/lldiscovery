@@ -3,6 +3,28 @@
 ## [Unreleased]
 
 ### Added
+- **RDMA GUIDs on Edge Labels**: Complete RDMA identification information on edges
+  - Edge labels include Node GUID and Sys Image GUID for both local and remote sides
+  - Format: `Local: mlx5_0 N:0x1111:2222:3333:4444 S:0xaaaa:bbbb:cccc:dddd`
+  - Enables precise hardware identification directly from the topology graph
+  - Critical for InfiniBand fabric management and troubleshooting
+- **RDMA Information on Edges**: Full RDMA details preserved for both connection endpoints
+  - Edge labels show RDMA devices for both local and remote sides when present
+  - Format: `[Local: mlx5_0, Remote: mlx5_1]` when both sides have RDMA
+  - All RDMA GUIDs (node_guid, sys_image_guid) preserved in edge data structure
+  - Useful for InfiniBand/RoCE topology visualization
+- **Multi-Edge Support**: Handles multiple connections between same pair of hosts
+  - When hosts have multiple interfaces on the same VLAN, each creates a separate edge
+  - Useful for visualizing redundant/bonded connections
+  - All edges are shown in the graph, not just one per host pair
+- **Address Labels on Edges**: IP addresses moved from node labels to edge labels
+  - Edge labels now show: `eth0 (fe80::1) <-> eth1 (fe80::2)`
+  - Makes it easier to see which specific addresses are connected
+  - Node labels are cleaner and show only interface names (and RDMA info)
+- **Smart Interface Display**: Only show interfaces that have discovered connections
+  - Interfaces without neighbors are hidden from node labels
+  - Reduces clutter in large deployments
+  - Makes it immediately obvious which interfaces are active
 - **Graph Edges**: Topology graph now shows connections between nodes
   - Edges display interface names on both ends (e.g., `eth0 <-> eth1`)
   - Helps visualize which interfaces are on the same network segment

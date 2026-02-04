@@ -62,19 +62,25 @@ graph lldiscovery {
   rankdir=LR;
   node [shape=box, style=rounded];
 
-  "a1b2c3d4" [label="server01.example.com (local)\na1b2c3d4\neth0: fe80::1\neth1: fe80::2", style="rounded,filled", fillcolor="lightblue"];
-  "e5f6g7h8" [label="server02.example.com\ne5f6g7h8\neth0: fe80::10"];
-  "i9j0k1l2" [label="server03.example.com\ni9j0k1l2\nib0: fe80::20\nNode GUID: 0x1234:5678:90ab:cdef\nSys GUID: 0xabcd:ef01:2345:6789"];
+  "a1b2c3d4" [label="server01.example.com (local)\na1b2c3d4\neth0\neth1", style="rounded,filled", fillcolor="lightblue"];
+  "e5f6g7h8" [label="server02.example.com\ne5f6g7h8\neth0"];
+  "i9j0k1l2" [label="server03.example.com\ni9j0k1l2\nib0 [mlx5_0]\nN: 0x1234:5678:90ab:cdef\nS: 0xabcd:ef01:2345:6789"];
 
-  "a1b2c3d4" -- "e5f6g7h8" [label="eth0 <-> eth0"];
-  "a1b2c3d4" -- "i9j0k1l2" [label="eth1 <-> ib0"];
+  "a1b2c3d4" -- "e5f6g7h8" [label="eth0 (fe80::1) <-> eth0 (fe80::10)"];
+  "a1b2c3d4" -- "i9j0k1l2" [label="ib0 (fe80::2) <-> ib0 (fe80::20)\nLocal: mlx5_0 N:0x1111:2222:3333:4444 S:0xaaaa:bbbb:cccc:dddd\nRemote: mlx5_1 N:0x5555:6666:7777:8888 S:0xeeee:ffff:0000:1111"];
 }
 ```
 
 **Notes:** 
 - The local node is highlighted with a blue background and "(local)" label
-- Edges show which interfaces are connected (e.g., `eth0 <-> eth0`)
-- InfiniBand interfaces display node_guid and sys_image_guid
+- Node labels show only interface names (and RDMA device info if present)
+- IP addresses are shown on edge labels, not node labels
+- Edges show which interfaces are connected with their addresses
+- **RDMA information on edges**: Full details including device names and GUIDs
+  - Format: `Local: mlx5_0 N:0x1111... S:0xaaaa...`
+  - Shows both Node GUID (N:) and Sys Image GUID (S:) for each side
+  - Makes it easy to identify specific hardware on both ends
+- **Multiple edges between same hosts**: If hosts have multiple interfaces on the same VLAN, each connection creates a separate edge
 
 ### Health Check
 
@@ -91,27 +97,45 @@ After running `curl http://localhost:8080/graph.dot | dot -Tpng -o topology.png`
 ┌─────────────────────────────┐
 │ server01.example.com (local)│  <- Blue background
 │ a1b2c3d4                    │     (this is where daemon runs)
-│ eth0: fe80::1               │
-│ eth1: fe80::2               │
+│ eth0                        │
+│ eth1                        │
 └─────────────────────────────┘
-
-┌─────────────────────────────┐
-│ server02.example.com        │
-│ e5f6g7h8                    │
-│ eth0: fe80::10              │
-└─────────────────────────────┘
-
-┌─────────────────────────────┐
-│ server03.example.com        │
-│ i9j0k1l2                    │
-│ eth1: fe80::20              │
-└─────────────────────────────┘
+         │                 │
+    eth0 (fe80::1)   eth1 (fe80::2)
+         │                 │
+         ↓                 ↓
+┌─────────────────────────────┐   ┌─────────────────────────────┐
+│ server02.example.com        │   │ server03.example.com        │
+│ e5f6g7h8                    │   │ i9j0k1l2                    │
+│ eth0                        │   │ ib0 [mlx5_0]                │
+└─────────────────────────────┘   └─────────────────────────────┘
+    eth0 (fe80::10)               ib0 (fe80::20) [mlx5_0]
 ```
 
 **Interpretation:**
 - server01 (local node, blue) and server02 see each other on eth0 → same VLAN
-- server01 (local) and server03 see each other on eth1 → same VLAN
+- server01 (local) and server03 see each other on ib0 (InfiniBand) → same VLAN
 - server02 and server03 don't see each other → different VLANs/isolated
+- **Edge labels show IP addresses** (e.g., "eth0 (fe80::1) <-> eth0 (fe80::10)")
+- **Edge labels show full RDMA info** including device names and GUIDs for both sides
+- **Node labels only show interface names**, not addresses
+- **Interfaces without connections** are not shown in the graph
+
+### Multi-homed Hosts Example
+
+When hosts have multiple interfaces on the same VLAN:
+
+```
+server01 ─ib0 (fe80::1)──────ib0 (fe80::100)─ server02
+  │        Local: mlx5_0 N:0x1111... S:0xaaaa...
+  │        Remote: mlx5_2 N:0x9999... S:0x2222...
+  │
+  └───────ib1 (fe80::2)──────ib1 (fe80::101)─┘
+           Local: mlx5_1 N:0x5555... S:0xeeee...
+           Remote: mlx5_3 N:0xdddd... S:0x6666...
+```
+
+This creates **two separate edges** between the same pair of hosts, each showing complete RDMA information including Node GUIDs and Sys Image GUIDs for hardware identification.
 
 ## Systemd Service Logs
 

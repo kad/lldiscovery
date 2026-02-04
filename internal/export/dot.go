@@ -9,13 +9,31 @@ import (
 	"kad.name/lldiscovery/internal/graph"
 )
 
-func GenerateDOT(nodes map[string]*graph.Node, edges map[string]map[string]*graph.Edge) string {
+func GenerateDOT(nodes map[string]*graph.Node, edges map[string]map[string][]*graph.Edge) string {
 	var sb strings.Builder
 
 	sb.WriteString("graph lldiscovery {\n")
 	sb.WriteString("  rankdir=LR;\n")
 	sb.WriteString("  node [shape=box, style=rounded];\n\n")
 
+	// First pass: collect which interfaces have connections
+	connectedInterfaces := make(map[string]map[string]bool) // [machineID][interface] -> true
+	for srcMachineID, dests := range edges {
+		if connectedInterfaces[srcMachineID] == nil {
+			connectedInterfaces[srcMachineID] = make(map[string]bool)
+		}
+		for dstMachineID, edgeList := range dests {
+			if connectedInterfaces[dstMachineID] == nil {
+				connectedInterfaces[dstMachineID] = make(map[string]bool)
+			}
+			for _, edge := range edgeList {
+				connectedInterfaces[srcMachineID][edge.LocalInterface] = true
+				connectedInterfaces[dstMachineID][edge.RemoteInterface] = true
+			}
+		}
+	}
+
+	// Generate nodes - only show connected interfaces and RDMA info
 	for machineID, node := range nodes {
 		shortID := machineID
 		if len(shortID) > 8 {
@@ -24,26 +42,41 @@ func GenerateDOT(nodes map[string]*graph.Node, edges map[string]map[string]*grap
 
 		var ifaceList []string
 		for iface, details := range node.Interfaces {
-			ifaceStr := fmt.Sprintf("%s: %s", iface, details.IPAddress)
+			// Only show interfaces that have connections
+			if !connectedInterfaces[machineID][iface] {
+				continue
+			}
+			
+			ifaceStr := iface
 			// Add RDMA device name if present
 			if details.RDMADevice != "" {
 				ifaceStr += fmt.Sprintf(" [%s]", details.RDMADevice)
 			}
-			// Add RDMA GUIDs if present
-			if details.NodeGUID != "" {
-				ifaceStr += fmt.Sprintf("\\nNode GUID: %s", details.NodeGUID)
-			}
-			if details.SysImageGUID != "" {
-				ifaceStr += fmt.Sprintf("\\nSys GUID: %s", details.SysImageGUID)
+			// Add RDMA GUIDs if present (compact format)
+			if details.NodeGUID != "" || details.SysImageGUID != "" {
+				if details.NodeGUID != "" {
+					ifaceStr += fmt.Sprintf("\\nN: %s", details.NodeGUID)
+				}
+				if details.SysImageGUID != "" {
+					ifaceStr += fmt.Sprintf("\\nS: %s", details.SysImageGUID)
+				}
 			}
 			ifaceList = append(ifaceList, ifaceStr)
 		}
-		ifaceStr := strings.Join(ifaceList, "\\n")
-
-		label := fmt.Sprintf("%s\\n%s\\n%s",
-			node.Hostname,
-			shortID,
-			ifaceStr)
+		
+		var label string
+		if len(ifaceList) > 0 {
+			ifaceStr := strings.Join(ifaceList, "\\n")
+			label = fmt.Sprintf("%s\\n%s\\n%s",
+				node.Hostname,
+				shortID,
+				ifaceStr)
+		} else {
+			// No connected interfaces - just show hostname and ID
+			label = fmt.Sprintf("%s\\n%s",
+				node.Hostname,
+				shortID)
+		}
 
 		// Highlight local node with different style
 		if node.IsLocal {
@@ -55,23 +88,63 @@ func GenerateDOT(nodes map[string]*graph.Node, edges map[string]map[string]*grap
 		}
 	}
 
-	// Add edges
+	// Add all edges (including multiples between same pair of nodes)
 	sb.WriteString("\n")
-	edgesAdded := make(map[string]bool) // Track to avoid duplicate edges
+	edgesAdded := make(map[string]bool) // Track to avoid showing both directions of same edge
 	for srcMachineID, dests := range edges {
-		for dstMachineID, edge := range dests {
-			// Create a canonical edge key (sorted)
-			edgeKey := srcMachineID + "--" + dstMachineID
-			reverseKey := dstMachineID + "--" + srcMachineID
-			
-			if edgesAdded[edgeKey] || edgesAdded[reverseKey] {
-				continue
-			}
-			edgesAdded[edgeKey] = true
+		for dstMachineID, edgeList := range dests {
+			for _, edge := range edgeList {
+				// Create a canonical edge key for deduplication (sorted + interface pair)
+				edgeKey := fmt.Sprintf("%s:%s--%s:%s", srcMachineID, edge.LocalInterface, dstMachineID, edge.RemoteInterface)
+				reverseKey := fmt.Sprintf("%s:%s--%s:%s", dstMachineID, edge.RemoteInterface, srcMachineID, edge.LocalInterface)
+				
+				if edgesAdded[edgeKey] || edgesAdded[reverseKey] {
+					continue
+				}
+				edgesAdded[edgeKey] = true
 
-			edgeLabel := fmt.Sprintf("%s <-> %s", edge.LocalInterface, edge.RemoteInterface)
-			sb.WriteString(fmt.Sprintf("  \"%s\" -- \"%s\" [label=\"%s\"];\n",
-				srcMachineID, dstMachineID, edgeLabel))
+				// Build edge label with addresses
+				edgeLabel := fmt.Sprintf("%s (%s) <-> %s (%s)", 
+					edge.LocalInterface, edge.LocalAddress,
+					edge.RemoteInterface, edge.RemoteAddress)
+				
+				// Add RDMA info to edge label if present on either side
+				var rdmaLines []string
+				
+				// Build local RDMA info line
+				if edge.LocalRDMADevice != "" {
+					localRDMA := fmt.Sprintf("Local: %s", edge.LocalRDMADevice)
+					if edge.LocalNodeGUID != "" {
+						localRDMA += fmt.Sprintf(" N:%s", edge.LocalNodeGUID)
+					}
+					if edge.LocalSysImageGUID != "" {
+						localRDMA += fmt.Sprintf(" S:%s", edge.LocalSysImageGUID)
+					}
+					rdmaLines = append(rdmaLines, localRDMA)
+				}
+				
+				// Build remote RDMA info line
+				if edge.RemoteRDMADevice != "" {
+					remoteRDMA := fmt.Sprintf("Remote: %s", edge.RemoteRDMADevice)
+					if edge.RemoteNodeGUID != "" {
+						remoteRDMA += fmt.Sprintf(" N:%s", edge.RemoteNodeGUID)
+					}
+					if edge.RemoteSysImageGUID != "" {
+						remoteRDMA += fmt.Sprintf(" S:%s", edge.RemoteSysImageGUID)
+					}
+					rdmaLines = append(rdmaLines, remoteRDMA)
+				}
+				
+				// Add RDMA info to label
+				if len(rdmaLines) > 0 {
+					for _, line := range rdmaLines {
+						edgeLabel += "\\n" + line
+					}
+				}
+				
+				sb.WriteString(fmt.Sprintf("  \"%s\" -- \"%s\" [label=\"%s\"];\n",
+					srcMachineID, dstMachineID, edgeLabel))
+			}
 		}
 	}
 

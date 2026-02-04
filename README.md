@@ -10,7 +10,9 @@ Network discovery daemon for VLAN-segmented environments using IPv6 link-local m
 
 - **Automatic interface discovery**: Detects all active non-loopback interfaces using netlink
 - **IPv6 link-local multicast**: Uses `ff02::4c4c:6469` for discovery without routing
-- **Dynamic graph with edges**: Shows connections between nodes with interface labels
+- **Dynamic graph with edges**: Shows connections between nodes with interface labels and IP addresses
+- **Multi-edge support**: Handles multiple interfaces between same hosts (redundant/bonded connections)
+- **Smart interface display**: Only shows interfaces with active connections in the graph
 - **Local node tracking**: Includes the local host in the topology graph
 - **RDMA/InfiniBand support**: Detects RDMA devices and includes node_guid, sys_image_guid, and device names
 - **Multiple export formats**: DOT file for Graphviz + JSON over HTTP API
