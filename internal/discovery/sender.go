@@ -153,7 +153,8 @@ func (s *Sender) sendOnInterface(ctx context.Context, iface InterfaceInfo) error
 	s.logger.Debug("sent discovery packet",
 		"interface", iface.Name,
 		"source", iface.LinkLocal,
-		"size", len(data))
+		"size", len(data),
+		"content", string(data))
 
 	span.SetStatus(codes.Ok, "packet sent successfully")
 	return nil

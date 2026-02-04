@@ -167,7 +167,8 @@ func (r *Receiver) handlePacket(data []byte, remoteAddr *net.UDPAddr, receivingI
 		"machine_id", packet.MachineID[:8],
 		"source", sourceIP,
 		"sender_interface", packet.Interface,
-		"received_on", receivingInterface)
+		"received_on", receivingInterface,
+		"content", string(data))
 
 	if r.handler != nil {
 		r.handler(packet, sourceIP, receivingInterface)

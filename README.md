@@ -202,15 +202,22 @@ watch -n 5 'dot -Tpng /var/lib/lldiscovery/topology.dot -o topology.png'
 
 ### Discovery Packet Format
 
+Discovery packets include complete RDMA information when available:
+
 ```json
 {
   "hostname": "host1.example.com",
   "machine_id": "a1b2c3d4e5f6789...",
   "timestamp": 1234567890,
-  "interface": "eth0",
-  "source_ip": "fe80::1%eth0"
+  "interface": "ib0",
+  "source_ip": "fe80::1",
+  "rdma_device": "mlx5_0",
+  "node_guid": "0x1111:2222:3333:4444",
+  "sys_image_guid": "0xaaaa:bbbb:cccc:dddd"
 }
 ```
+
+Note: `rdma_device`, `node_guid`, and `sys_image_guid` are omitted for non-RDMA interfaces.
 
 ## Network Requirements
 
@@ -266,20 +273,38 @@ sudo firewall-cmd --reload
 ┌─────────────────────────────────────────┐
 │           lldiscovery daemon            │
 ├─────────────────────────────────────────┤
-│  Interface Discovery                    │
+│  Interface Discovery (netlink + RDMA)   │
 │    ↓                                    │
 │  Multicast Sender (per interface)       │
+│  [sends packets with RDMA info]         │
 │    ↓                                    │
 │  Multicast Receiver (all interfaces)    │
+│  [extracts RDMA from packets]           │
 │    ↓                                    │
 │  Graph Manager (with TTL expiration)    │
+│  [stores RDMA in nodes and edges]       │
 │    ↓                                    │
 │  ┌─────────────┬──────────────────┐    │
 │  │  DOT Export │   HTTP API       │    │
 │  │  (periodic) │   (on-demand)    │    │
+│  │  with RDMA  │   with RDMA      │    │
 │  └─────────────┴──────────────────┘    │
 └─────────────────────────────────────────┘
 ```
+
+## Documentation
+
+- **README.md** - This file (overview and quickstart)
+- **QUICKSTART.md** - Fast setup guide
+- **CHANGELOG.md** - Version history and features
+- **EXAMPLE_OUTPUT.md** - Sample outputs and visualization examples
+- **OPENTELEMETRY.md** - Observability setup guide
+- **MULTICAST_ADDRESS.md** - Why we use ff02::4c4c:6469
+- **DEBUG_LOGGING.md** - Debug logging guide
+- **GRAPH_EDGES_IB.md** - Graph edges and InfiniBand support
+- **LOCAL_NODE_FEATURE.md** - Local node highlighting
+- **RDMA_EDGE_LABELS.md** - RDMA information on edge labels
+- **RDMA_INFORMATION_FLOW.md** - Complete RDMA data flow verification
 
 ## License
 

@@ -3,6 +3,12 @@
 ## [Unreleased]
 
 ### Added
+- **Packet Content in Debug Logs**: Complete JSON packet content shown in debug logs
+  - Sent packets include full JSON in `content` field
+  - Received packets include full JSON in `content` field
+  - Makes it easy to verify RDMA information transmission
+  - Useful for debugging packet parsing issues
+  - Can pipe to `jq` for pretty-printing: `grep content | jq`
 - **RDMA GUIDs on Edge Labels**: Complete RDMA identification information on edges
   - Edge labels include Node GUID and Sys Image GUID for both local and remote sides
   - Format: `Local: mlx5_0 N:0x1111:2222:3333:4444 S:0xaaaa:bbbb:cccc:dddd`
