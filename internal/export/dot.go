@@ -14,7 +14,8 @@ func GenerateDOT(nodes map[string]*graph.Node, edges map[string]map[string][]*gr
 
 	sb.WriteString("graph lldiscovery {\n")
 	sb.WriteString("  rankdir=LR;\n")
-	sb.WriteString("  node [shape=box, style=rounded];\n\n")
+	sb.WriteString("  node [shape=box, style=rounded];\n")
+	sb.WriteString("  // RDMA-to-RDMA connections shown in BLUE with thick lines\n\n")
 
 	// First pass: collect which interfaces have connections
 	connectedInterfaces := make(map[string]map[string]bool) // [machineID][interface] -> true
@@ -108,11 +109,16 @@ func GenerateDOT(nodes map[string]*graph.Node, edges map[string]map[string][]*gr
 					edge.LocalInterface, edge.LocalAddress,
 					edge.RemoteInterface, edge.RemoteAddress)
 				
+				// Check RDMA status on both sides
+				hasLocalRDMA := edge.LocalRDMADevice != ""
+				hasRemoteRDMA := edge.RemoteRDMADevice != ""
+				bothRDMA := hasLocalRDMA && hasRemoteRDMA
+				
 				// Add RDMA info to edge label if present on either side
 				var rdmaLines []string
 				
 				// Build local RDMA info line
-				if edge.LocalRDMADevice != "" {
+				if hasLocalRDMA {
 					localRDMA := fmt.Sprintf("Local: %s", edge.LocalRDMADevice)
 					if edge.LocalNodeGUID != "" {
 						localRDMA += fmt.Sprintf(" N:%s", edge.LocalNodeGUID)
@@ -124,7 +130,7 @@ func GenerateDOT(nodes map[string]*graph.Node, edges map[string]map[string][]*gr
 				}
 				
 				// Build remote RDMA info line
-				if edge.RemoteRDMADevice != "" {
+				if hasRemoteRDMA {
 					remoteRDMA := fmt.Sprintf("Remote: %s", edge.RemoteRDMADevice)
 					if edge.RemoteNodeGUID != "" {
 						remoteRDMA += fmt.Sprintf(" N:%s", edge.RemoteNodeGUID)
@@ -142,8 +148,26 @@ func GenerateDOT(nodes map[string]*graph.Node, edges map[string]map[string][]*gr
 					}
 				}
 				
-				sb.WriteString(fmt.Sprintf("  \"%s\" -- \"%s\" [label=\"%s\"];\n",
-					srcMachineID, dstMachineID, edgeLabel))
+				// Add RDMA-to-RDMA indicator
+				if bothRDMA {
+					edgeLabel += "\\n[RDMA-to-RDMA]"
+				}
+				
+				// Build edge attributes - highlight RDMA-to-RDMA connections
+				var edgeAttrs string
+				if bothRDMA {
+					// Both sides have RDMA - thick, colored edge
+					edgeAttrs = fmt.Sprintf(" [label=\"%s\", color=\"blue\", penwidth=2.0]", edgeLabel)
+				} else if hasLocalRDMA || hasRemoteRDMA {
+					// Only one side has RDMA - normal edge
+					edgeAttrs = fmt.Sprintf(" [label=\"%s\"]", edgeLabel)
+				} else {
+					// No RDMA - normal edge
+					edgeAttrs = fmt.Sprintf(" [label=\"%s\"]", edgeLabel)
+				}
+				
+				sb.WriteString(fmt.Sprintf("  \"%s\" -- \"%s\"%s;\n",
+					srcMachineID, dstMachineID, edgeAttrs))
 			}
 		}
 	}

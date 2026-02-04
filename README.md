@@ -306,6 +306,7 @@ sudo firewall-cmd --reload
 - **GRAPH_EDGES_IB.md** - Graph edges and InfiniBand support
 - **LOCAL_NODE_FEATURE.md** - Local node highlighting
 - **RDMA_EDGE_LABELS.md** - RDMA information on edge labels
+- **RDMA_EDGE_VISUAL.md** - Visual styling for RDMA-to-RDMA connections
 - **RDMA_INFORMATION_FLOW.md** - Complete RDMA data flow verification
 - **SOFT_ROCE_RXE.md** - Soft-RoCE (RXE) software RDMA support
 

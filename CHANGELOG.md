@@ -3,6 +3,12 @@
 ## [Unreleased]
 
 ### Added
+- **RDMA-to-RDMA Edge Marking**: Visual distinction for full RDMA connections
+  - Edges with RDMA on both sides marked with `[RDMA-to-RDMA]` label
+  - RDMA-to-RDMA edges displayed in **blue** with **thick lines** (penwidth=2.0)
+  - Mixed edges (RDMA on one side only) shown with normal styling
+  - Non-RDMA edges shown with normal styling
+  - Makes it easy to identify high-performance RDMA fabric paths
 - **Soft-RoCE (RXE) Support**: Full detection of software RDMA devices
   - Detects RXE interfaces created with `rxe` kernel module
   - Reads parent interface from `/sys/class/infiniband/<device>/parent` file
