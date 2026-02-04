@@ -98,6 +98,13 @@ func (s *Sender) sendOnInterface(ctx context.Context, iface InterfaceInfo) error
 		span.SetStatus(codes.Error, "failed to create packet")
 		return fmt.Errorf("create packet: %w", err)
 	}
+	
+	// Add RDMA device info and GUIDs if available
+	if iface.IsRDMA {
+		packet.RDMADevice = iface.RDMADevice
+		packet.NodeGUID = iface.NodeGUID
+		packet.SysImageGUID = iface.SysImageGUID
+	}
 
 	data, err := packet.Marshal()
 	if err != nil {

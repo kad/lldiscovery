@@ -3,6 +3,19 @@
 ## [Unreleased]
 
 ### Added
+- **Graph Edges**: Topology graph now shows connections between nodes
+  - Edges display interface names on both ends (e.g., `eth0 <-> eth1`)
+  - Helps visualize which interfaces are on the same network segment
+  - Edges automatically created when packets are received
+  - DOT output includes edge labels for easy identification
+- **RDMA/InfiniBand Support**: Robust detection using netlink library
+  - Uses `github.com/vishvananda/netlink` for interface discovery
+  - Detects all RDMA devices (InfiniBand, RoCE, iWARP) and their parent network interfaces
+  - Maps network interfaces to RDMA devices via sysfs (`/sys/class/infiniband/<device>/device/net/`)
+  - Includes RDMA device name (e.g., `mlx5_0`, `mlx4_0`) in output
+  - Reads and includes `node_guid` and `sys_image_guid` for each RDMA device
+  - GUIDs and RDMA device names displayed in both DOT and JSON outputs
+  - More reliable than type-based detection, works with all RDMA protocols
 - **Enhanced Debug Logging**: Detailed packet reception information
   - Added `sender_interface` field showing which interface the sender used
   - Added `received_on` field showing which local interface received the packet

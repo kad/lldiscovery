@@ -5,28 +5,42 @@ import (
 	"time"
 )
 
+type InterfaceDetails struct {
+	IPAddress    string
+	RDMADevice   string
+	NodeGUID     string
+	SysImageGUID string
+}
+
 type Node struct {
 	Hostname   string
 	MachineID  string
 	LastSeen   time.Time
-	Interfaces map[string]string
+	Interfaces map[string]InterfaceDetails
 	IsLocal    bool
+}
+
+type Edge struct {
+	LocalInterface  string
+	RemoteInterface string
 }
 
 type Graph struct {
 	mu         sync.RWMutex
 	nodes      map[string]*Node
 	localNode  *Node
+	edges      map[string]map[string]*Edge // [localMachineID][remoteMachineID] -> Edge
 	changed    bool
 }
 
 func New() *Graph {
 	return &Graph{
 		nodes: make(map[string]*Node),
+		edges: make(map[string]map[string]*Edge),
 	}
 }
 
-func (g *Graph) SetLocalNode(machineID, hostname string, interfaces map[string]string) {
+func (g *Graph) SetLocalNode(machineID, hostname string, interfaces map[string]InterfaceDetails) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	
@@ -40,7 +54,7 @@ func (g *Graph) SetLocalNode(machineID, hostname string, interfaces map[string]s
 	g.changed = true
 }
 
-func (g *Graph) AddOrUpdate(machineID, hostname, iface, sourceIP string) {
+func (g *Graph) AddOrUpdate(machineID, hostname, remoteIface, sourceIP, receivingIface, rdmaDevice, nodeGUID, sysImageGUID string) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
@@ -49,7 +63,7 @@ func (g *Graph) AddOrUpdate(machineID, hostname, iface, sourceIP string) {
 		node = &Node{
 			Hostname:   hostname,
 			MachineID:  machineID,
-			Interfaces: make(map[string]string),
+			Interfaces: make(map[string]InterfaceDetails),
 			IsLocal:    false,
 		}
 		g.nodes[machineID] = node
@@ -63,9 +77,34 @@ func (g *Graph) AddOrUpdate(machineID, hostname, iface, sourceIP string) {
 
 	node.LastSeen = time.Now()
 
-	if node.Interfaces[iface] != sourceIP {
-		node.Interfaces[iface] = sourceIP
+	// Update interface details
+	details := InterfaceDetails{
+		IPAddress:    sourceIP,
+		RDMADevice:   rdmaDevice,
+		NodeGUID:     nodeGUID,
+		SysImageGUID: sysImageGUID,
+	}
+	
+	if existing, ok := node.Interfaces[remoteIface]; !ok || existing != details {
+		node.Interfaces[remoteIface] = details
 		g.changed = true
+	}
+	
+	// Track edge (connection between interfaces)
+	if g.localNode != nil && receivingIface != "" {
+		if _, ok := g.edges[g.localNode.MachineID]; !ok {
+			g.edges[g.localNode.MachineID] = make(map[string]*Edge)
+		}
+		
+		edge := &Edge{
+			LocalInterface:  receivingIface,
+			RemoteInterface: remoteIface,
+		}
+		
+		if existing, ok := g.edges[g.localNode.MachineID][machineID]; !ok || *existing != *edge {
+			g.edges[g.localNode.MachineID][machineID] = edge
+			g.changed = true
+		}
 	}
 }
 
@@ -99,7 +138,7 @@ func (g *Graph) GetNodes() map[string]*Node {
 			Hostname:   g.localNode.Hostname,
 			MachineID:  g.localNode.MachineID,
 			LastSeen:   g.localNode.LastSeen,
-			Interfaces: make(map[string]string),
+			Interfaces: make(map[string]InterfaceDetails),
 			IsLocal:    true,
 		}
 		for ik, iv := range g.localNode.Interfaces {
@@ -114,13 +153,32 @@ func (g *Graph) GetNodes() map[string]*Node {
 			Hostname:   v.Hostname,
 			MachineID:  v.MachineID,
 			LastSeen:   v.LastSeen,
-			Interfaces: make(map[string]string),
+			Interfaces: make(map[string]InterfaceDetails),
 			IsLocal:    false,
 		}
 		for ik, iv := range v.Interfaces {
 			nodeCopy.Interfaces[ik] = iv
 		}
 		result[k] = nodeCopy
+	}
+
+	return result
+}
+
+func (g *Graph) GetEdges() map[string]map[string]*Edge {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+
+	result := make(map[string]map[string]*Edge)
+	for src, dests := range g.edges {
+		result[src] = make(map[string]*Edge)
+		for dst, edge := range dests {
+			edgeCopy := &Edge{
+				LocalInterface:  edge.LocalInterface,
+				RemoteInterface: edge.RemoteInterface,
+			}
+			result[src][dst] = edgeCopy
+		}
 	}
 
 	return result

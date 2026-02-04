@@ -14,7 +14,7 @@ import (
 	"golang.org/x/net/ipv6"
 )
 
-type PacketHandler func(*Packet, string)
+type PacketHandler func(*Packet, string, string)
 
 type Receiver struct {
 	multicastAddr     string
@@ -170,6 +170,6 @@ func (r *Receiver) handlePacket(data []byte, remoteAddr *net.UDPAddr, receivingI
 		"received_on", receivingInterface)
 
 	if r.handler != nil {
-		r.handler(packet, sourceIP)
+		r.handler(packet, sourceIP, receivingInterface)
 	}
 }

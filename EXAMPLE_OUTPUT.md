@@ -64,10 +64,17 @@ graph lldiscovery {
 
   "a1b2c3d4" [label="server01.example.com (local)\na1b2c3d4\neth0: fe80::1\neth1: fe80::2", style="rounded,filled", fillcolor="lightblue"];
   "e5f6g7h8" [label="server02.example.com\ne5f6g7h8\neth0: fe80::10"];
+  "i9j0k1l2" [label="server03.example.com\ni9j0k1l2\nib0: fe80::20\nNode GUID: 0x1234:5678:90ab:cdef\nSys GUID: 0xabcd:ef01:2345:6789"];
+
+  "a1b2c3d4" -- "e5f6g7h8" [label="eth0 <-> eth0"];
+  "a1b2c3d4" -- "i9j0k1l2" [label="eth1 <-> ib0"];
 }
 ```
 
-**Note:** The local node (where the daemon is running) is highlighted with a blue background and "(local)" label.
+**Notes:** 
+- The local node is highlighted with a blue background and "(local)" label
+- Edges show which interfaces are connected (e.g., `eth0 <-> eth0`)
+- InfiniBand interfaces display node_guid and sys_image_guid
 
 ### Health Check
 

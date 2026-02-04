@@ -98,9 +98,14 @@ func main() {
 	if err != nil {
 		logger.Error("failed to get local interfaces", "error", err)
 	} else {
-		ifaceMap := make(map[string]string)
+		ifaceMap := make(map[string]graph.InterfaceDetails)
 		for _, iface := range localInterfaces {
-			ifaceMap[iface.Name] = iface.LinkLocal
+			ifaceMap[iface.Name] = graph.InterfaceDetails{
+				IPAddress:    iface.LinkLocal,
+				RDMADevice:   iface.RDMADevice,
+				NodeGUID:     iface.NodeGUID,
+				SysImageGUID: iface.SysImageGUID,
+			}
 		}
 		
 		// Get hostname and machine ID
@@ -126,8 +131,8 @@ func main() {
 		multicastFailures = metrics.MulticastJoinFailures
 	}
 
-	receiver, err := discovery.NewReceiver(cfg.MulticastAddr, cfg.MulticastPort, logger, func(p *discovery.Packet, sourceIP string) {
-		g.AddOrUpdate(p.MachineID, p.Hostname, p.Interface, sourceIP)
+	receiver, err := discovery.NewReceiver(cfg.MulticastAddr, cfg.MulticastPort, logger, func(p *discovery.Packet, sourceIP, receivingIface string) {
+		g.AddOrUpdate(p.MachineID, p.Hostname, p.Interface, sourceIP, receivingIface, p.RDMADevice, p.NodeGUID, p.SysImageGUID)
 	}, packetsReceived, multicastFailures)
 	if err != nil {
 		logger.Error("failed to create receiver", "error", err)
@@ -189,7 +194,8 @@ func runExporter(ctx context.Context, g *graph.Graph, cfg *config.Config, logger
 		case <-exportTicker.C:
 			if g.HasChanges() {
 				nodes := g.GetNodes()
-				dot := export.GenerateDOT(nodes)
+				edges := g.GetEdges()
+				dot := export.GenerateDOT(nodes, edges)
 				if err := export.WriteDOTFile(cfg.OutputFile, dot); err != nil {
 					logger.Error("failed to write DOT file", "error", err)
 				} else {

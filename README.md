@@ -8,10 +8,11 @@ Network discovery daemon for VLAN-segmented environments using IPv6 link-local m
 
 ## Features
 
-- **Automatic interface discovery**: Detects all active non-loopback interfaces
+- **Automatic interface discovery**: Detects all active non-loopback interfaces using netlink
 - **IPv6 link-local multicast**: Uses `ff02::4c4c:6469` for discovery without routing
-- **Dynamic graph**: Automatically adds/removes nodes based on packet reception
+- **Dynamic graph with edges**: Shows connections between nodes with interface labels
 - **Local node tracking**: Includes the local host in the topology graph
+- **RDMA/InfiniBand support**: Detects RDMA devices and includes node_guid, sys_image_guid, and device names
 - **Multiple export formats**: DOT file for Graphviz + JSON over HTTP API
 - **VLAN-aware**: Discovers hosts per-interface, showing segmentation
 - **Configurable**: Timing, ports, and paths via config file or defaults
@@ -176,15 +177,18 @@ watch -n 5 'dot -Tpng /var/lib/lldiscovery/topology.dot -o topology.png'
 
 ## How It Works
 
-1. **Interface Discovery**: Daemon detects all active non-loopback interfaces and extracts their IPv6 link-local addresses
-2. **Local Node**: Adds local host to the graph with hostname, machine-id, and interface information
-3. **Packet Broadcast**: Every `send_interval`, sends a JSON discovery packet to `ff02::4c4c:6469` (custom multicast group) on each interface
-4. **Packet Reception**: Listens for discovery packets from other hosts on all interfaces
-5. **Graph Building**: Adds/updates remote nodes in the graph with hostname, machine-id, and interface information
+1. **Interface Discovery**: Uses netlink library to detect all active non-loopback interfaces. Discovers RDMA devices and maps them to their parent network interfaces via sysfs.
+2. **Local Node**: Adds local host to the graph with hostname, machine-id, interface information, and RDMA device names/GUIDs.
+3. **Packet Broadcast**: Every `send_interval`, sends a JSON discovery packet to `ff02::4c4c:6469` (custom multicast group) on each interface. Packets include RDMA device names and GUIDs if applicable.
+4. **Packet Reception**: Listens for discovery packets from other hosts on all interfaces, tracking which local interface received each packet
+5. **Graph Building**: Adds/updates remote nodes and creates edges showing interface-to-interface connections
 6. **Expiration**: Removes remote nodes that haven't sent packets within `node_timeout`
 7. **Export**: Periodically checks for changes and exports the graph to DOT file and serves via HTTP API
 
-**Graph Visualization**: The local node (where the daemon runs) is highlighted with a blue background and "(local)" label in the DOT output. This makes it easy to identify the observing host in multi-host topologies.
+**Graph Visualization**: 
+- The local node is highlighted with a blue background and "(local)" label
+- Edges between nodes show the connected interfaces (e.g., `eth0 <-> eth1`)
+- RDMA interfaces display their device name (e.g., `[mlx5_0]`), node_guid, and sys_image_guid
 
 ### Multicast Address
 

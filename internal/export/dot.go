@@ -9,7 +9,7 @@ import (
 	"kad.name/lldiscovery/internal/graph"
 )
 
-func GenerateDOT(nodes map[string]*graph.Node) string {
+func GenerateDOT(nodes map[string]*graph.Node, edges map[string]map[string]*graph.Edge) string {
 	var sb strings.Builder
 
 	sb.WriteString("graph lldiscovery {\n")
@@ -23,8 +23,20 @@ func GenerateDOT(nodes map[string]*graph.Node) string {
 		}
 
 		var ifaceList []string
-		for iface, ip := range node.Interfaces {
-			ifaceList = append(ifaceList, fmt.Sprintf("%s: %s", iface, ip))
+		for iface, details := range node.Interfaces {
+			ifaceStr := fmt.Sprintf("%s: %s", iface, details.IPAddress)
+			// Add RDMA device name if present
+			if details.RDMADevice != "" {
+				ifaceStr += fmt.Sprintf(" [%s]", details.RDMADevice)
+			}
+			// Add RDMA GUIDs if present
+			if details.NodeGUID != "" {
+				ifaceStr += fmt.Sprintf("\\nNode GUID: %s", details.NodeGUID)
+			}
+			if details.SysImageGUID != "" {
+				ifaceStr += fmt.Sprintf("\\nSys GUID: %s", details.SysImageGUID)
+			}
+			ifaceList = append(ifaceList, ifaceStr)
 		}
 		ifaceStr := strings.Join(ifaceList, "\\n")
 
@@ -40,6 +52,26 @@ func GenerateDOT(nodes map[string]*graph.Node) string {
 		} else {
 			sb.WriteString(fmt.Sprintf("  \"%s\" [label=\"%s\"];\n",
 				machineID, label))
+		}
+	}
+
+	// Add edges
+	sb.WriteString("\n")
+	edgesAdded := make(map[string]bool) // Track to avoid duplicate edges
+	for srcMachineID, dests := range edges {
+		for dstMachineID, edge := range dests {
+			// Create a canonical edge key (sorted)
+			edgeKey := srcMachineID + "--" + dstMachineID
+			reverseKey := dstMachineID + "--" + srcMachineID
+			
+			if edgesAdded[edgeKey] || edgesAdded[reverseKey] {
+				continue
+			}
+			edgesAdded[edgeKey] = true
+
+			edgeLabel := fmt.Sprintf("%s <-> %s", edge.LocalInterface, edge.RemoteInterface)
+			sb.WriteString(fmt.Sprintf("  \"%s\" -- \"%s\" [label=\"%s\"];\n",
+				srcMachineID, dstMachineID, edgeLabel))
 		}
 	}
 

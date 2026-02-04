@@ -8,11 +8,14 @@ import (
 )
 
 type Packet struct {
-	Hostname  string `json:"hostname"`
-	MachineID string `json:"machine_id"`
-	Timestamp int64  `json:"timestamp"`
-	Interface string `json:"interface"`
-	SourceIP  string `json:"source_ip"`
+	Hostname     string `json:"hostname"`
+	MachineID    string `json:"machine_id"`
+	Timestamp    int64  `json:"timestamp"`
+	Interface    string `json:"interface"`
+	SourceIP     string `json:"source_ip"`
+	RDMADevice   string `json:"rdma_device,omitempty"`
+	NodeGUID     string `json:"node_guid,omitempty"`
+	SysImageGUID string `json:"sys_image_guid,omitempty"`
 }
 
 func NewPacket(iface, sourceIP string) (*Packet, error) {

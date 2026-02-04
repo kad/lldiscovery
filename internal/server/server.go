@@ -77,7 +77,8 @@ func (s *Server) handleGraphDOT(w http.ResponseWriter, r *http.Request) {
 	}
 
 	nodes := s.graph.GetNodes()
-	dot := export.GenerateDOT(nodes)
+	edges := s.graph.GetEdges()
+	dot := export.GenerateDOT(nodes, edges)
 
 	w.Header().Set("Content-Type", "text/vnd.graphviz")
 	w.Write([]byte(dot))
