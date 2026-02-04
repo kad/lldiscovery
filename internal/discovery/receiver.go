@@ -65,6 +65,11 @@ func (r *Receiver) Run(ctx context.Context) error {
 
 	p := ipv6.NewPacketConn(conn)
 	
+	// Enable control messages to get receiving interface info
+	if err := p.SetControlMessage(ipv6.FlagInterface, true); err != nil {
+		r.logger.Warn("failed to enable interface control messages", "error", err)
+	}
+	
 	for _, iface := range interfaces {
 		ifaceObj, err := net.InterfaceByName(iface.Name)
 		if err != nil {
@@ -99,7 +104,7 @@ func (r *Receiver) Run(ctx context.Context) error {
 
 	buf := make([]byte, 65536)
 	for {
-		n, remoteAddr, err := conn.ReadFromUDP(buf)
+		n, cm, src, err := p.ReadFrom(buf)
 		if err != nil {
 			select {
 			case <-ctx.Done():
@@ -110,11 +115,20 @@ func (r *Receiver) Run(ctx context.Context) error {
 			}
 		}
 
-		r.handlePacket(buf[:n], remoteAddr)
+		var receivingInterface string
+		if cm != nil && cm.IfIndex > 0 {
+			if iface, err := net.InterfaceByIndex(cm.IfIndex); err == nil {
+				receivingInterface = iface.Name
+			}
+		}
+
+		if udpAddr, ok := src.(*net.UDPAddr); ok {
+			r.handlePacket(buf[:n], udpAddr, receivingInterface)
+		}
 	}
 }
 
-func (r *Receiver) handlePacket(data []byte, remoteAddr *net.UDPAddr) {
+func (r *Receiver) handlePacket(data []byte, remoteAddr *net.UDPAddr, receivingInterface string) {
 	ctx, span := r.tracer.Start(context.Background(), "handle_packet")
 	defer span.End()
 
@@ -152,7 +166,8 @@ func (r *Receiver) handlePacket(data []byte, remoteAddr *net.UDPAddr) {
 		"hostname", packet.Hostname,
 		"machine_id", packet.MachineID[:8],
 		"source", sourceIP,
-		"interface", packet.Interface)
+		"sender_interface", packet.Interface,
+		"received_on", receivingInterface)
 
 	if r.handler != nil {
 		r.handler(packet, sourceIP)

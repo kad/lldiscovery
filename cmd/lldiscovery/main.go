@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -91,6 +92,31 @@ func main() {
 	}
 
 	g := graph.New()
+
+	// Get local machine info and interfaces for the graph
+	localInterfaces, err := discovery.GetActiveInterfaces()
+	if err != nil {
+		logger.Error("failed to get local interfaces", "error", err)
+	} else {
+		ifaceMap := make(map[string]string)
+		for _, iface := range localInterfaces {
+			ifaceMap[iface.Name] = iface.LinkLocal
+		}
+		
+		// Get hostname and machine ID
+		hostname, _ := os.Hostname()
+		if hostname == "" {
+			hostname = "unknown"
+		}
+		
+		machineID, err := os.ReadFile("/etc/machine-id")
+		if err == nil {
+			g.SetLocalNode(strings.TrimSpace(string(machineID)), hostname, ifaceMap)
+			logger.Info("local node added to graph",
+				"hostname", hostname,
+				"interfaces", len(ifaceMap))
+		}
+	}
 
 	var packetsReceived, packetsSent, errors, multicastFailures metric.Int64Counter
 	if metrics != nil {

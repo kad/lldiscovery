@@ -9,11 +9,13 @@ Network discovery daemon for VLAN-segmented environments using IPv6 link-local m
 ## Features
 
 - **Automatic interface discovery**: Detects all active non-loopback interfaces
-- **IPv6 link-local multicast**: Uses `ff02::1` for discovery without routing
+- **IPv6 link-local multicast**: Uses `ff02::4c4c:6469` for discovery without routing
 - **Dynamic graph**: Automatically adds/removes nodes based on packet reception
+- **Local node tracking**: Includes the local host in the topology graph
 - **Multiple export formats**: DOT file for Graphviz + JSON over HTTP API
 - **VLAN-aware**: Discovers hosts per-interface, showing segmentation
 - **Configurable**: Timing, ports, and paths via config file or defaults
+- **OpenTelemetry support**: Optional traces, metrics, and logs export
 
 ## Installation
 
@@ -175,11 +177,14 @@ watch -n 5 'dot -Tpng /var/lib/lldiscovery/topology.dot -o topology.png'
 ## How It Works
 
 1. **Interface Discovery**: Daemon detects all active non-loopback interfaces and extracts their IPv6 link-local addresses
-2. **Packet Broadcast**: Every `send_interval`, sends a JSON discovery packet to `ff02::4c4c:6469` (custom multicast group) on each interface
-3. **Packet Reception**: Listens for discovery packets from other hosts on all interfaces
-4. **Graph Building**: Adds/updates nodes in the graph with hostname, machine-id, and interface information
-5. **Expiration**: Removes nodes that haven't sent packets within `node_timeout`
-6. **Export**: Periodically checks for changes and exports the graph to DOT file and serves via HTTP API
+2. **Local Node**: Adds local host to the graph with hostname, machine-id, and interface information
+3. **Packet Broadcast**: Every `send_interval`, sends a JSON discovery packet to `ff02::4c4c:6469` (custom multicast group) on each interface
+4. **Packet Reception**: Listens for discovery packets from other hosts on all interfaces
+5. **Graph Building**: Adds/updates remote nodes in the graph with hostname, machine-id, and interface information
+6. **Expiration**: Removes remote nodes that haven't sent packets within `node_timeout`
+7. **Export**: Periodically checks for changes and exports the graph to DOT file and serves via HTTP API
+
+**Graph Visualization**: The local node (where the daemon runs) is highlighted with a blue background and "(local)" label in the DOT output. This makes it easy to identify the observing host in multi-host topologies.
 
 ### Multicast Address
 

@@ -3,6 +3,16 @@
 ## [Unreleased]
 
 ### Added
+- **Enhanced Debug Logging**: Detailed packet reception information
+  - Added `sender_interface` field showing which interface the sender used
+  - Added `received_on` field showing which local interface received the packet
+  - Enabled IPv6 control messages to capture receiving interface information
+  - Useful for troubleshooting VLAN connectivity and understanding traffic flow
+- **Local Node in Graph**: Daemon now includes itself in the topology graph
+  - Local node is highlighted with blue background and "(local)" label in DOT output
+  - JSON API includes `IsLocal: true` field for the local node
+  - Makes it easy to identify the observing host in multi-host topologies
+  - Shows local interfaces and addresses alongside discovered remote nodes
 - **Smart Output File Selection**: Automatically falls back to `./topology.dot` if `/var/lib/lldiscovery/` is not writable
   - No more permission errors when running as non-root user
   - Startup log shows which output file path is being used

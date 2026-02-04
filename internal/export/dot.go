@@ -33,8 +33,14 @@ func GenerateDOT(nodes map[string]*graph.Node) string {
 			shortID,
 			ifaceStr)
 
-		sb.WriteString(fmt.Sprintf("  \"%s\" [label=\"%s\"];\n",
-			machineID, label))
+		// Highlight local node with different style
+		if node.IsLocal {
+			sb.WriteString(fmt.Sprintf("  \"%s\" [label=\"%s (local)\", style=\"rounded,filled\", fillcolor=\"lightblue\"];\n",
+				machineID, label))
+		} else {
+			sb.WriteString(fmt.Sprintf("  \"%s\" [label=\"%s\"];\n",
+				machineID, label))
+		}
 	}
 
 	sb.WriteString("}\n")
