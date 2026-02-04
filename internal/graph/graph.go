@@ -6,13 +6,18 @@ import (
 )
 
 type NeighborData struct {
-	MachineID    string
-	Hostname     string
-	Interface    string
-	Address      string
-	RDMADevice   string
-	NodeGUID     string
-	SysImageGUID string
+	MachineID          string
+	Hostname           string
+	LocalInterface     string
+	LocalAddress       string
+	LocalRDMADevice    string
+	LocalNodeGUID      string
+	LocalSysImageGUID  string
+	RemoteInterface    string
+	RemoteAddress      string
+	RemoteRDMADevice   string
+	RemoteNodeGUID     string
+	RemoteSysImageGUID string
 }
 
 type InterfaceDetails struct {
@@ -167,6 +172,105 @@ func (g *Graph) AddOrUpdate(machineID, hostname, remoteIface, sourceIP, receivin
 		}
 	}
 }
+
+// AddOrUpdateIndirectEdge adds an edge from a neighbor report with complete information about both sides
+func (g *Graph) AddOrUpdateIndirectEdge(
+	neighborMachineID, neighborHostname,
+	neighborIface, neighborAddress,
+	neighborRDMA, neighborNodeGUID, neighborSysImageGUID,
+	intermediateIface, intermediateAddress,
+	intermediateRDMA, intermediateNodeGUID, intermediateSysImageGUID,
+	learnedFrom string) {
+	
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	// Ensure neighbor node exists
+	node, exists := g.nodes[neighborMachineID]
+	if !exists {
+		node = &Node{
+			Hostname:   neighborHostname,
+			MachineID:  neighborMachineID,
+			Interfaces: make(map[string]InterfaceDetails),
+			IsLocal:    false,
+		}
+		g.nodes[neighborMachineID] = node
+		g.changed = true
+	}
+
+	node.LastSeen = time.Now()
+
+	// Update neighbor's interface details
+	neighborDetails := InterfaceDetails{
+		IPAddress:    neighborAddress,
+		RDMADevice:   neighborRDMA,
+		NodeGUID:     neighborNodeGUID,
+		SysImageGUID: neighborSysImageGUID,
+	}
+	if existing, ok := node.Interfaces[neighborIface]; !ok || existing != neighborDetails {
+		node.Interfaces[neighborIface] = neighborDetails
+		g.changed = true
+	}
+
+	// Also ensure the intermediate node exists and update its interface
+	intermediateNode, intermediateExists := g.nodes[learnedFrom]
+	if intermediateExists && intermediateIface != "" {
+		intermediateDetails := InterfaceDetails{
+			IPAddress:    intermediateAddress,
+			RDMADevice:   intermediateRDMA,
+			NodeGUID:     intermediateNodeGUID,
+			SysImageGUID: intermediateSysImageGUID,
+		}
+		if existing, ok := intermediateNode.Interfaces[intermediateIface]; !ok || existing != intermediateDetails {
+			intermediateNode.Interfaces[intermediateIface] = intermediateDetails
+			g.changed = true
+		}
+	}
+
+	// Create edge showing the connection between intermediate and neighbor
+	// This edge is from intermediate node's perspective, so we store it there
+	if intermediateExists {
+		if _, ok := g.edges[learnedFrom]; !ok {
+			g.edges[learnedFrom] = make(map[string][]*Edge)
+		}
+
+		edge := &Edge{
+			LocalInterface:     intermediateIface,
+			LocalAddress:       intermediateAddress,
+			LocalRDMADevice:    intermediateRDMA,
+			LocalNodeGUID:      intermediateNodeGUID,
+			LocalSysImageGUID:  intermediateSysImageGUID,
+			RemoteInterface:    neighborIface,
+			RemoteAddress:      neighborAddress,
+			RemoteRDMADevice:   neighborRDMA,
+			RemoteNodeGUID:     neighborNodeGUID,
+			RemoteSysImageGUID: neighborSysImageGUID,
+			Direct:             false,
+			LearnedFrom:        learnedFrom,
+		}
+
+		// Check if this edge already exists
+		edges := g.edges[learnedFrom][neighborMachineID]
+		found := false
+		for i, existingEdge := range edges {
+			if existingEdge.LocalInterface == edge.LocalInterface &&
+				existingEdge.RemoteInterface == edge.RemoteInterface {
+				// Update existing indirect edge
+				if !existingEdge.Direct {
+					edges[i] = edge
+				}
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			g.edges[learnedFrom][neighborMachineID] = append(edges, edge)
+			g.changed = true
+		}
+	}
+}
+
 
 func (g *Graph) RemoveExpired(timeout time.Duration) int {
 	g.mu.Lock()
@@ -332,13 +436,18 @@ func (g *Graph) GetDirectNeighbors() []NeighborData {
 					}
 					
 					result = append(result, NeighborData{
-						MachineID:    dstID,
-						Hostname:     node.Hostname,
-						Interface:    edge.RemoteInterface,
-						Address:      edge.RemoteAddress,
-						RDMADevice:   edge.RemoteRDMADevice,
-						NodeGUID:     edge.RemoteNodeGUID,
-						SysImageGUID: edge.RemoteSysImageGUID,
+						MachineID:          dstID,
+						Hostname:           node.Hostname,
+						LocalInterface:     edge.LocalInterface,
+						LocalAddress:       edge.LocalAddress,
+						LocalRDMADevice:    edge.LocalRDMADevice,
+						LocalNodeGUID:      edge.LocalNodeGUID,
+						LocalSysImageGUID:  edge.LocalSysImageGUID,
+						RemoteInterface:    edge.RemoteInterface,
+						RemoteAddress:      edge.RemoteAddress,
+						RemoteRDMADevice:   edge.RemoteRDMADevice,
+						RemoteNodeGUID:     edge.RemoteNodeGUID,
+						RemoteSysImageGUID: edge.RemoteSysImageGUID,
 					})
 				}
 			}

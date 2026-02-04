@@ -14,8 +14,9 @@
   - Use `--help` to see all available flags
 - **Transitive Topology Discovery**: Build complete network topology including indirect connections
   - Disabled by default (`include_neighbors: false`) for backward compatibility
-  - When enabled, each daemon shares its direct neighbor list in discovery packets
-  - Creates indirect edges (dashed lines) for hosts learned through other hosts
+  - When enabled, each daemon shares its direct neighbor list with **complete edge information**
+  - Neighbor packets include both sides of each edge: local interface/address/RDMA and remote interface/address/RDMA
+  - Creates indirect edges (dashed lines) with complete information, no empty fields
   - Cascading expiration: indirect edges removed when source node expires
   - Edge upgrades: indirect edges automatically upgraded to direct when direct connection established
   - Topology depth limited to 1-hop (only direct neighbors shared) to prevent packet size explosion

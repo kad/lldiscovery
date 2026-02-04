@@ -121,14 +121,18 @@ func (s *Sender) sendOnInterface(ctx context.Context, iface InterfaceInfo) error
 		packet.Neighbors = make([]NeighborInfo, len(neighbors))
 		for i, n := range neighbors {
 			packet.Neighbors[i] = NeighborInfo{
-				MachineID:    n.MachineID,
-				Hostname:     n.Hostname,
-				Interface:    n.Interface,
-				Address:      n.Address,
-				IsRDMA:       n.RDMADevice != "",
-				RDMADevice:   n.RDMADevice,
-				NodeGUID:     n.NodeGUID,
-				SysImageGUID: n.SysImageGUID,
+				MachineID:          n.MachineID,
+				Hostname:           n.Hostname,
+				LocalInterface:     n.LocalInterface,
+				LocalAddress:       n.LocalAddress,
+				LocalRDMADevice:    n.LocalRDMADevice,
+				LocalNodeGUID:      n.LocalNodeGUID,
+				LocalSysImageGUID:  n.LocalSysImageGUID,
+				RemoteInterface:    n.RemoteInterface,
+				RemoteAddress:      n.RemoteAddress,
+				RemoteRDMADevice:   n.RemoteRDMADevice,
+				RemoteNodeGUID:     n.RemoteNodeGUID,
+				RemoteSysImageGUID: n.RemoteSysImageGUID,
 			}
 		}
 	}

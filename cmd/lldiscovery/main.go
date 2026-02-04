@@ -219,8 +219,25 @@ func main() {
 					continue
 				}
 				
-				// Create indirect edge - no local interface since we didn't directly receive from them
-				g.AddOrUpdate(neighbor.MachineID, neighbor.Hostname, neighbor.Interface, neighbor.Address, "", neighbor.RDMADevice, neighbor.NodeGUID, neighbor.SysImageGUID, false, p.MachineID)
+				// Create indirect edge with full information from both sides
+				// The neighbor struct contains: sender's interface to neighbor (Local*) and neighbor's interface (Remote*)
+				// We create an edge from us to the neighbor, using the sender's local interface as the "remote" interface
+				// because from our perspective, the sender's interface is the remote side
+				g.AddOrUpdateIndirectEdge(
+					neighbor.MachineID,
+					neighbor.Hostname,
+					neighbor.RemoteInterface,    // Neighbor's interface
+					neighbor.RemoteAddress,      // Neighbor's address
+					neighbor.RemoteRDMADevice,   // Neighbor's RDMA
+					neighbor.RemoteNodeGUID,
+					neighbor.RemoteSysImageGUID,
+					neighbor.LocalInterface,     // Sender's interface (connecting to neighbor)
+					neighbor.LocalAddress,       // Sender's address
+					neighbor.LocalRDMADevice,    // Sender's RDMA
+					neighbor.LocalNodeGUID,
+					neighbor.LocalSysImageGUID,
+					p.MachineID,                 // Learned from sender
+				)
 			}
 		}
 	}, packetsReceived, multicastFailures)

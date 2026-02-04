@@ -83,9 +83,11 @@ When `include_neighbors: true`, discovery packets include a neighbors array:
 ### Packet Size Considerations
 
 - **Base packet**: ~173 bytes (no RDMA) or ~267 bytes (with RDMA)
-- **Each neighbor**: ~150-250 bytes depending on RDMA info
-- **Example**: 10 neighbors ≈ 1.5-2.5 KB additional data
+- **Each neighbor with complete edge info**: ~300-400 bytes depending on RDMA info
+- **Example**: 5 neighbors with RDMA ≈ 2.3 KB total packet size
 - **UDP multicast limit**: 64 KB (sufficient for typical deployments)
+
+**Note:** Neighbor information includes complete edge details (both interfaces, both addresses, both RDMA devices) to enable accurate indirect edge visualization.
 
 ## Visualization
 
@@ -113,16 +115,15 @@ graph lldiscovery {
   "host2" [label="host2\n..."];
   "host3" [label="host3\n..."];
 
-  // Direct connection: A <-> B (solid)
+  // Direct connection: A <-> B (solid, complete edge info)
   "host1" -- "host2" [label="eth0 (fe80::1) <-> eth0 (fe80::2)"];
 
-  // Indirect connection: A -> C via B (dashed)
-  "host1" -- "host3" [label=" () <-> eth0 (fe80::3)", style="dashed"];
-
-  // Direct connection: B <-> C (solid)
-  "host2" -- "host3" [label="eth0 (fe80::2) <-> eth0 (fe80::3)"];
+  // Indirect connection: B -> C learned from B (dashed, complete edge info)
+  "host2" -- "host3" [label="eth1 (fe80::2:1) <-> eth0 (fe80::3)", style="dashed"];
 }
 ```
+
+**Key Point:** Indirect edges now show complete information (both interfaces and addresses) because the neighbor data includes both sides of each edge, not just the remote side.
 
 ### RDMA with Indirect Edges
 

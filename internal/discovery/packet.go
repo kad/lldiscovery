@@ -8,14 +8,20 @@ import (
 )
 
 type NeighborInfo struct {
-	MachineID    string `json:"machine_id"`
-	Hostname     string `json:"hostname"`
-	Interface    string `json:"interface"`
-	Address      string `json:"address"`
-	IsRDMA       bool   `json:"is_rdma,omitempty"`
-	RDMADevice   string `json:"rdma_device,omitempty"`
-	NodeGUID     string `json:"node_guid,omitempty"`
-	SysImageGUID string `json:"sys_image_guid,omitempty"`
+	MachineID         string `json:"machine_id"`
+	Hostname          string `json:"hostname"`
+	// Local side (sender's interface to this neighbor)
+	LocalInterface    string `json:"local_interface"`
+	LocalAddress      string `json:"local_address"`
+	LocalRDMADevice   string `json:"local_rdma_device,omitempty"`
+	LocalNodeGUID     string `json:"local_node_guid,omitempty"`
+	LocalSysImageGUID string `json:"local_sys_image_guid,omitempty"`
+	// Remote side (neighbor's interface)
+	RemoteInterface    string `json:"remote_interface"`
+	RemoteAddress      string `json:"remote_address"`
+	RemoteRDMADevice   string `json:"remote_rdma_device,omitempty"`
+	RemoteNodeGUID     string `json:"remote_node_guid,omitempty"`
+	RemoteSysImageGUID string `json:"remote_sys_image_guid,omitempty"`
 }
 
 type Packet struct {
