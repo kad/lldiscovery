@@ -3,6 +3,15 @@
 ## [Unreleased]
 
 ### Added
+- **CLI Flag Configuration**: All configuration parameters now available as CLI flags
+  - Timing: `-send-interval`, `-node-timeout`, `-export-interval`
+  - Network: `-multicast-address`, `-multicast-port`
+  - Output: `-output-file`, `-http-address`
+  - Features: `-include-neighbors`
+  - Telemetry: `-telemetry-enabled`, `-telemetry-endpoint`, `-telemetry-protocol`, etc.
+  - Logging: `-log-level`
+  - CLI flags override config file values (precedence: CLI > config file > defaults)
+  - Use `--help` to see all available flags
 - **Transitive Topology Discovery**: Build complete network topology including indirect connections
   - Disabled by default (`include_neighbors: false`) for backward compatibility
   - When enabled, each daemon shares its direct neighbor list in discovery packets

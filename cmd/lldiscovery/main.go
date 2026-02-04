@@ -25,6 +25,31 @@ var (
 	configPath  = flag.String("config", "", "path to configuration file")
 	logLevel    = flag.String("log-level", "", "log level (debug, info, warn, error)")
 	showVersion = flag.Bool("version", false, "show version and exit")
+	
+	// Timing parameters
+	sendInterval   = flag.Duration("send-interval", 0, "how often to send discovery packets (e.g., 30s)")
+	nodeTimeout    = flag.Duration("node-timeout", 0, "remove nodes after this period of no packets (e.g., 120s)")
+	exportInterval = flag.Duration("export-interval", 0, "how often to check for changes and export (e.g., 60s)")
+	
+	// Network parameters
+	multicastAddr = flag.String("multicast-address", "", "IPv6 multicast address (default: ff02::4c4c:6469)")
+	multicastPort = flag.Int("multicast-port", 0, "UDP port for discovery protocol")
+	
+	// Output parameters
+	outputFile  = flag.String("output-file", "", "path to DOT file output")
+	httpAddress = flag.String("http-address", "", "HTTP server bind address (e.g., :8080)")
+	
+	// Feature flags
+	includeNeighbors = flag.Bool("include-neighbors", false, "share neighbor information for transitive discovery")
+	
+	// Telemetry parameters
+	telemetryEnabled       = flag.Bool("telemetry-enabled", false, "enable OpenTelemetry")
+	telemetryEndpoint      = flag.String("telemetry-endpoint", "", "OpenTelemetry endpoint (e.g., localhost:4317)")
+	telemetryProtocol      = flag.String("telemetry-protocol", "", "OpenTelemetry protocol (grpc or http)")
+	telemetryInsecure      = flag.Bool("telemetry-insecure", false, "use insecure connection for telemetry")
+	telemetryEnableTraces  = flag.Bool("telemetry-traces", false, "enable trace export")
+	telemetryEnableMetrics = flag.Bool("telemetry-metrics", false, "enable metrics export")
+	telemetryEnableLogs    = flag.Bool("telemetry-logs", false, "enable logs export")
 )
 
 func main() {
@@ -41,8 +66,58 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Override config with CLI flags if provided
 	if *logLevel != "" {
 		cfg.LogLevel = *logLevel
+	}
+	if *sendInterval > 0 {
+		cfg.SendInterval = *sendInterval
+	}
+	if *nodeTimeout > 0 {
+		cfg.NodeTimeout = *nodeTimeout
+	}
+	if *exportInterval > 0 {
+		cfg.ExportInterval = *exportInterval
+	}
+	if *multicastAddr != "" {
+		cfg.MulticastAddr = *multicastAddr
+	}
+	if *multicastPort > 0 {
+		cfg.MulticastPort = *multicastPort
+	}
+	if *outputFile != "" {
+		cfg.OutputFile = *outputFile
+	}
+	if *httpAddress != "" {
+		cfg.HTTPAddress = *httpAddress
+	}
+	// Note: includeNeighbors flag is false by default, so we need to check if it was explicitly set
+	// We'll use a separate approach for boolean flags
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == "include-neighbors" {
+			cfg.IncludeNeighbors = *includeNeighbors
+		}
+		if f.Name == "telemetry-enabled" {
+			cfg.Telemetry.Enabled = *telemetryEnabled
+		}
+		if f.Name == "telemetry-insecure" {
+			cfg.Telemetry.Insecure = *telemetryInsecure
+		}
+		if f.Name == "telemetry-traces" {
+			cfg.Telemetry.EnableTraces = *telemetryEnableTraces
+		}
+		if f.Name == "telemetry-metrics" {
+			cfg.Telemetry.EnableMetrics = *telemetryEnableMetrics
+		}
+		if f.Name == "telemetry-logs" {
+			cfg.Telemetry.EnableLogs = *telemetryEnableLogs
+		}
+	})
+	if *telemetryEndpoint != "" {
+		cfg.Telemetry.Endpoint = *telemetryEndpoint
+	}
+	if *telemetryProtocol != "" {
+		cfg.Telemetry.Protocol = *telemetryProtocol
 	}
 
 	logger := setupLogger(cfg.LogLevel)

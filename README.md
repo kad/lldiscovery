@@ -61,24 +61,41 @@ sudo systemctl start lldiscovery
 # With default configuration (outputs to ./topology.dot if not running as root)
 ./lldiscovery
 
-# With custom config
+# With custom config file
 ./lldiscovery -config /etc/lldiscovery/config.json
 
 # With debug logging
 ./lldiscovery -log-level debug
 
+# Override specific settings via CLI flags
+./lldiscovery -send-interval 10s -http-address :9999
+
+# Enable transitive discovery
+./lldiscovery -include-neighbors
+
+# Combine config file with flag overrides (flags take precedence)
+./lldiscovery -config config.json -log-level debug -send-interval 15s
+
 # Show version
 ./lldiscovery -version
+
+# Show all available flags
+./lldiscovery --help
 ```
 
 **Note:** The daemon automatically selects an output file location:
 - If running with permissions to write to `/var/lib/lldiscovery/`, uses `/var/lib/lldiscovery/topology.dot`
 - Otherwise, falls back to `./topology.dot` in the current directory
-- You can override this by setting `output_file` in the configuration
+- You can override this with `-output-file` flag or `output_file` in configuration
 
 ### Configuration
 
-Configuration file (JSON format):
+Configuration can be provided via:
+1. **Config file** (JSON format) - loaded with `-config` flag
+2. **CLI flags** - override config file values
+3. **Defaults** - used when neither file nor flag is specified
+
+#### Config File Example
 
 ```json
 {
@@ -95,15 +112,34 @@ Configuration file (JSON format):
 
 **Parameters:**
 
-- `send_interval`: How often to send discovery packets (default: 30s)
-- `node_timeout`: Remove nodes after this period of no packets (default: 120s)
-- `export_interval`: How often to check for changes and export (default: 60s)
-- `multicast_address`: IPv6 multicast address (default: ff02::4c4c:6469 - see note below)
-- `multicast_port`: UDP port for discovery protocol (default: 9999)
-- `output_file`: Path to DOT file output (default: `/var/lib/lldiscovery/topology.dot` if writable, otherwise `./topology.dot`)
-- `http_address`: HTTP server bind address (default: :8080)
-- `log_level`: Logging level: debug, info, warn, error (default: info)
-- `include_neighbors`: Share neighbor information for transitive discovery (default: false) - see [TRANSITIVE_DISCOVERY.md](TRANSITIVE_DISCOVERY.md)
+All parameters can be set via config file or CLI flags. CLI flags take precedence over config file values.
+
+| Parameter | Config File | CLI Flag | Default | Description |
+|-----------|-------------|----------|---------|-------------|
+| Send Interval | `send_interval` | `-send-interval` | 30s | How often to send discovery packets |
+| Node Timeout | `node_timeout` | `-node-timeout` | 120s | Remove nodes after no packets |
+| Export Interval | `export_interval` | `-export-interval` | 60s | How often to export changes |
+| Multicast Address | `multicast_address` | `-multicast-address` | ff02::4c4c:6469 | IPv6 multicast group |
+| Multicast Port | `multicast_port` | `-multicast-port` | 9999 | UDP port for discovery |
+| Output File | `output_file` | `-output-file` | (auto) | Path to DOT file output |
+| HTTP Address | `http_address` | `-http-address` | :8080 | HTTP API bind address |
+| Log Level | `log_level` | `-log-level` | info | Logging level (debug/info/warn/error) |
+| Include Neighbors | `include_neighbors` | `-include-neighbors` | false | Enable transitive discovery |
+
+**CLI Flag Examples:**
+```bash
+# Override send interval
+./lldiscovery -send-interval 10s
+
+# Change HTTP port
+./lldiscovery -http-address :9999
+
+# Enable transitive discovery with custom timeout
+./lldiscovery -include-neighbors -node-timeout 60s
+
+# Multiple overrides
+./lldiscovery -config config.json -log-level debug -send-interval 15s -output-file /tmp/topology.dot
+```
 
 **Note on multicast_address:** The default `ff02::4c4c:6469` is a custom application-specific address.
 Do NOT use `ff02::1` (all-nodes) as it's reserved for ICMPv6 and will cause interference with kernel networking.
@@ -111,7 +147,7 @@ See `MULTICAST_ADDRESS.md` for details.
 
 ### OpenTelemetry
 
-Enable observability with distributed tracing and metrics:
+Enable observability with distributed tracing and metrics via config file:
 
 ```json
 {
@@ -125,6 +161,16 @@ Enable observability with distributed tracing and metrics:
     "enable_logs": false
   }
 }
+```
+
+Or via CLI flags:
+```bash
+./lldiscovery \
+  -telemetry-enabled \
+  -telemetry-endpoint localhost:4317 \
+  -telemetry-protocol grpc \
+  -telemetry-traces \
+  -telemetry-metrics
 ```
 
 See `OPENTELEMETRY.md` for complete documentation.

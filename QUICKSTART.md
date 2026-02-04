@@ -7,12 +7,33 @@
 # Build
 make build
 
-# Run in debug mode (outputs to ./topology.dot)
+# Run with defaults (outputs to ./topology.dot)
+./lldiscovery
+
+# Run with debug logging
 ./lldiscovery -log-level debug
 
-# Or with custom config
+# Run with custom settings via flags
+./lldiscovery -send-interval 10s -http-address :9999
+
+# Enable transitive discovery
+./lldiscovery -include-neighbors
+
+# Or with custom config file
 ./lldiscovery -config config.example.json
+
+# Combine config file with flag overrides (flags take precedence)
+./lldiscovery -config config.json -log-level debug -send-interval 15s
 ```
+
+**Available Flags:**
+- `-send-interval` - How often to send packets (e.g., 10s, 30s, 1m)
+- `-node-timeout` - Node expiration timeout (e.g., 60s, 2m)
+- `-http-address` - HTTP API address (e.g., :8080, :9999)
+- `-output-file` - DOT file path (e.g., /tmp/topology.dot)
+- `-include-neighbors` - Enable transitive discovery
+- `-log-level` - Logging level (debug, info, warn, error)
+- See all flags with `./lldiscovery --help`
 
 **Note:** When running as a regular user, the daemon saves the graph to `./topology.dot` in the current directory. When running as root or with a systemd service, it uses `/var/lib/lldiscovery/topology.dot`.
 
