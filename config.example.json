@@ -7,6 +7,7 @@
   "output_file": "/var/lib/lldiscovery/topology.dot",
   "http_address": ":8080",
   "log_level": "info",
+  "include_neighbors": false,
   "telemetry": {
     "enabled": false,
     "endpoint": "localhost:4317",

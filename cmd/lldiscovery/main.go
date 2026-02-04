@@ -132,14 +132,29 @@ func main() {
 	}
 
 	receiver, err := discovery.NewReceiver(cfg.MulticastAddr, cfg.MulticastPort, logger, func(p *discovery.Packet, sourceIP, receivingIface string) {
-		g.AddOrUpdate(p.MachineID, p.Hostname, p.Interface, sourceIP, receivingIface, p.RDMADevice, p.NodeGUID, p.SysImageGUID)
+		// Add direct edge for received packet
+		g.AddOrUpdate(p.MachineID, p.Hostname, p.Interface, sourceIP, receivingIface, p.RDMADevice, p.NodeGUID, p.SysImageGUID, true, "")
+		
+		// Process neighbors if included
+		if cfg.IncludeNeighbors && len(p.Neighbors) > 0 {
+			localMachineID := g.GetLocalMachineID()
+			for _, neighbor := range p.Neighbors {
+				// Skip if neighbor is local node (avoid self-loop)
+				if neighbor.MachineID == localMachineID {
+					continue
+				}
+				
+				// Create indirect edge - no local interface since we didn't directly receive from them
+				g.AddOrUpdate(neighbor.MachineID, neighbor.Hostname, neighbor.Interface, neighbor.Address, "", neighbor.RDMADevice, neighbor.NodeGUID, neighbor.SysImageGUID, false, p.MachineID)
+			}
+		}
 	}, packetsReceived, multicastFailures)
 	if err != nil {
 		logger.Error("failed to create receiver", "error", err)
 		os.Exit(1)
 	}
 
-	sender := discovery.NewSender(cfg.MulticastAddr, cfg.MulticastPort, cfg.SendInterval, logger, packetsSent, errors)
+	sender := discovery.NewSender(cfg.MulticastAddr, cfg.MulticastPort, cfg.SendInterval, logger, packetsSent, errors, cfg.IncludeNeighbors, g)
 	srv := server.New(cfg.HTTPAddress, g, logger)
 
 	sigChan := make(chan os.Signal, 1)

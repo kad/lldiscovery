@@ -13,10 +13,12 @@ Network discovery daemon for VLAN-segmented environments using IPv6 link-local m
 - **Dynamic graph with edges**: Shows connections between nodes with interface labels and IP addresses
 - **Multi-edge support**: Handles multiple interfaces between same hosts (redundant/bonded connections)
 - **Smart interface display**: Only shows interfaces with active connections in the graph
+- **Transitive discovery**: Optional sharing of neighbor information to see complete topology including indirect connections
 - **Local node tracking**: Includes the local host in the topology graph
 - **RDMA/InfiniBand support**: Detects RDMA devices and includes node_guid, sys_image_guid, and device names
   - Hardware RDMA: InfiniBand adapters (Mellanox/NVIDIA ConnectX, Intel TrueScale, etc.)
   - Software RDMA: RoCE (RDMA over Converged Ethernet) and Soft-RoCE (RXE)
+  - Visual distinction: RDMA-to-RDMA connections shown in blue with thick lines
 - **Multiple export formats**: DOT file for Graphviz + JSON over HTTP API
 - **VLAN-aware**: Discovers hosts per-interface, showing segmentation
 - **Configurable**: Timing, ports, and paths via config file or defaults
@@ -101,6 +103,7 @@ Configuration file (JSON format):
 - `output_file`: Path to DOT file output (default: `/var/lib/lldiscovery/topology.dot` if writable, otherwise `./topology.dot`)
 - `http_address`: HTTP server bind address (default: :8080)
 - `log_level`: Logging level: debug, info, warn, error (default: info)
+- `include_neighbors`: Share neighbor information for transitive discovery (default: false) - see [TRANSITIVE_DISCOVERY.md](TRANSITIVE_DISCOVERY.md)
 
 **Note on multicast_address:** The default `ff02::4c4c:6469` is a custom application-specific address.
 Do NOT use `ff02::1` (all-nodes) as it's reserved for ICMPv6 and will cause interference with kernel networking.
@@ -305,6 +308,7 @@ sudo firewall-cmd --reload
 - **DEBUG_LOGGING.md** - Debug logging guide with packet content
 - **GRAPH_EDGES_IB.md** - Graph edges and InfiniBand support
 - **LOCAL_NODE_FEATURE.md** - Local node highlighting
+- **TRANSITIVE_DISCOVERY.md** - Transitive topology discovery (indirect connections)
 - **RDMA_EDGE_LABELS.md** - RDMA information on edge labels
 - **RDMA_EDGE_VISUAL.md** - Visual styling for RDMA-to-RDMA connections
 - **RDMA_INFORMATION_FLOW.md** - Complete RDMA data flow verification

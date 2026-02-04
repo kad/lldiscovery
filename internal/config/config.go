@@ -8,15 +8,16 @@ import (
 )
 
 type Config struct {
-	SendInterval   time.Duration `json:"send_interval"`
-	NodeTimeout    time.Duration `json:"node_timeout"`
-	ExportInterval time.Duration `json:"export_interval"`
-	MulticastAddr  string        `json:"multicast_address"`
-	MulticastPort  int           `json:"multicast_port"`
-	OutputFile     string        `json:"output_file"`
-	HTTPAddress    string        `json:"http_address"`
-	LogLevel       string        `json:"log_level"`
-	Telemetry      TelemetryConfig `json:"telemetry"`
+	SendInterval     time.Duration   `json:"send_interval"`
+	NodeTimeout      time.Duration   `json:"node_timeout"`
+	ExportInterval   time.Duration   `json:"export_interval"`
+	MulticastAddr    string          `json:"multicast_address"`
+	MulticastPort    int             `json:"multicast_port"`
+	OutputFile       string          `json:"output_file"`
+	HTTPAddress      string          `json:"http_address"`
+	LogLevel         string          `json:"log_level"`
+	IncludeNeighbors bool            `json:"include_neighbors"`
+	Telemetry        TelemetryConfig `json:"telemetry"`
 }
 
 type TelemetryConfig struct {
@@ -31,14 +32,15 @@ type TelemetryConfig struct {
 
 func Default() *Config {
 	return &Config{
-		SendInterval:   30 * time.Second,
-		NodeTimeout:    120 * time.Second,
-		ExportInterval: 60 * time.Second,
-		MulticastAddr:  "ff02::4c4c:6469",
-		MulticastPort:  9999,
-		OutputFile:     getDefaultOutputFile(),
-		HTTPAddress:    ":8080",
-		LogLevel:       "info",
+		SendInterval:     30 * time.Second,
+		NodeTimeout:      120 * time.Second,
+		ExportInterval:   60 * time.Second,
+		MulticastAddr:    "ff02::4c4c:6469",
+		MulticastPort:    9999,
+		OutputFile:       getDefaultOutputFile(),
+		HTTPAddress:      ":8080",
+		LogLevel:         "info",
+		IncludeNeighbors: false,
 		Telemetry: TelemetryConfig{
 			Enabled:       false,
 			Endpoint:      "localhost:4317",
@@ -86,15 +88,16 @@ func Load(path string) (*Config, error) {
 	}
 
 	var rawConfig struct {
-		SendInterval   string `json:"send_interval"`
-		NodeTimeout    string `json:"node_timeout"`
-		ExportInterval string `json:"export_interval"`
-		MulticastAddr  string `json:"multicast_address"`
-		MulticastPort  int    `json:"multicast_port"`
-		OutputFile     string `json:"output_file"`
-		HTTPAddress    string `json:"http_address"`
-		LogLevel       string `json:"log_level"`
-		Telemetry      TelemetryConfig `json:"telemetry"`
+		SendInterval     string          `json:"send_interval"`
+		NodeTimeout      string          `json:"node_timeout"`
+		ExportInterval   string          `json:"export_interval"`
+		MulticastAddr    string          `json:"multicast_address"`
+		MulticastPort    int             `json:"multicast_port"`
+		OutputFile       string          `json:"output_file"`
+		HTTPAddress      string          `json:"http_address"`
+		LogLevel         string          `json:"log_level"`
+		IncludeNeighbors bool            `json:"include_neighbors"`
+		Telemetry        TelemetryConfig `json:"telemetry"`
 	}
 
 	if err := json.Unmarshal(data, &rawConfig); err != nil {
@@ -134,6 +137,8 @@ func Load(path string) (*Config, error) {
 	if rawConfig.LogLevel != "" {
 		cfg.LogLevel = rawConfig.LogLevel
 	}
+	
+	cfg.IncludeNeighbors = rawConfig.IncludeNeighbors
 	
 	// Merge telemetry config
 	if rawConfig.Telemetry.Endpoint != "" || rawConfig.Telemetry.Enabled {

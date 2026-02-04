@@ -7,15 +7,27 @@ import (
 	"time"
 )
 
-type Packet struct {
-	Hostname     string `json:"hostname"`
+type NeighborInfo struct {
 	MachineID    string `json:"machine_id"`
-	Timestamp    int64  `json:"timestamp"`
+	Hostname     string `json:"hostname"`
 	Interface    string `json:"interface"`
-	SourceIP     string `json:"source_ip"`
+	Address      string `json:"address"`
+	IsRDMA       bool   `json:"is_rdma,omitempty"`
 	RDMADevice   string `json:"rdma_device,omitempty"`
 	NodeGUID     string `json:"node_guid,omitempty"`
 	SysImageGUID string `json:"sys_image_guid,omitempty"`
+}
+
+type Packet struct {
+	Hostname     string         `json:"hostname"`
+	MachineID    string         `json:"machine_id"`
+	Timestamp    int64          `json:"timestamp"`
+	Interface    string         `json:"interface"`
+	SourceIP     string         `json:"source_ip"`
+	RDMADevice   string         `json:"rdma_device,omitempty"`
+	NodeGUID     string         `json:"node_guid,omitempty"`
+	SysImageGUID string         `json:"sys_image_guid,omitempty"`
+	Neighbors    []NeighborInfo `json:"neighbors,omitempty"`
 }
 
 func NewPacket(iface, sourceIP string) (*Packet, error) {

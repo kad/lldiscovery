@@ -7,6 +7,7 @@ import (
 	"net"
 	"time"
 
+	"kad.name/lldiscovery/internal/graph"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -14,25 +15,33 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-type Sender struct {
-	multicastAddr string
-	port          int
-	interval      time.Duration
-	logger        *slog.Logger
-	tracer        trace.Tracer
-	packetsSent   metric.Int64Counter
-	errors        metric.Int64Counter
+type NeighborProvider interface {
+	GetDirectNeighbors() []graph.NeighborData
 }
 
-func NewSender(multicastAddr string, port int, interval time.Duration, logger *slog.Logger, packetsSent, errors metric.Int64Counter) *Sender {
+type Sender struct {
+	multicastAddr    string
+	port             int
+	interval         time.Duration
+	logger           *slog.Logger
+	tracer           trace.Tracer
+	packetsSent      metric.Int64Counter
+	errors           metric.Int64Counter
+	includeNeighbors bool
+	neighborProvider NeighborProvider
+}
+
+func NewSender(multicastAddr string, port int, interval time.Duration, logger *slog.Logger, packetsSent, errors metric.Int64Counter, includeNeighbors bool, neighborProvider NeighborProvider) *Sender {
 	return &Sender{
-		multicastAddr: multicastAddr,
-		port:          port,
-		interval:      interval,
-		logger:        logger,
-		tracer:        otel.Tracer("lldiscovery/discovery"),
-		packetsSent:   packetsSent,
-		errors:        errors,
+		multicastAddr:    multicastAddr,
+		port:             port,
+		interval:         interval,
+		logger:           logger,
+		tracer:           otel.Tracer("lldiscovery/discovery"),
+		packetsSent:      packetsSent,
+		errors:           errors,
+		includeNeighbors: includeNeighbors,
+		neighborProvider: neighborProvider,
 	}
 }
 
@@ -105,6 +114,24 @@ func (s *Sender) sendOnInterface(ctx context.Context, iface InterfaceInfo) error
 		packet.NodeGUID = iface.NodeGUID
 		packet.SysImageGUID = iface.SysImageGUID
 	}
+	
+	// Add neighbors if enabled
+	if s.includeNeighbors && s.neighborProvider != nil {
+		neighbors := s.neighborProvider.GetDirectNeighbors()
+		packet.Neighbors = make([]NeighborInfo, len(neighbors))
+		for i, n := range neighbors {
+			packet.Neighbors[i] = NeighborInfo{
+				MachineID:    n.MachineID,
+				Hostname:     n.Hostname,
+				Interface:    n.Interface,
+				Address:      n.Address,
+				IsRDMA:       n.RDMADevice != "",
+				RDMADevice:   n.RDMADevice,
+				NodeGUID:     n.NodeGUID,
+				SysImageGUID: n.SysImageGUID,
+			}
+		}
+	}
 
 	data, err := packet.Marshal()
 	if err != nil {
@@ -154,6 +181,7 @@ func (s *Sender) sendOnInterface(ctx context.Context, iface InterfaceInfo) error
 		"interface", iface.Name,
 		"source", iface.LinkLocal,
 		"size", len(data),
+		"neighbors", len(packet.Neighbors),
 		"content", string(data))
 
 	span.SetStatus(codes.Ok, "packet sent successfully")

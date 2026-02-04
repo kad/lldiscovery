@@ -15,7 +15,8 @@ func GenerateDOT(nodes map[string]*graph.Node, edges map[string]map[string][]*gr
 	sb.WriteString("graph lldiscovery {\n")
 	sb.WriteString("  rankdir=LR;\n")
 	sb.WriteString("  node [shape=box, style=rounded];\n")
-	sb.WriteString("  // RDMA-to-RDMA connections shown in BLUE with thick lines\n\n")
+	sb.WriteString("  // RDMA-to-RDMA connections shown in BLUE with thick lines\n")
+	sb.WriteString("  // Dashed lines indicate indirect connections\n\n")
 
 	// First pass: collect which interfaces have connections
 	connectedInterfaces := make(map[string]map[string]bool) // [machineID][interface] -> true
@@ -153,17 +154,30 @@ func GenerateDOT(nodes map[string]*graph.Node, edges map[string]map[string][]*gr
 					edgeLabel += "\\n[RDMA-to-RDMA]"
 				}
 				
-				// Build edge attributes - highlight RDMA-to-RDMA connections
+				// Build edge attributes - highlight RDMA-to-RDMA connections and indirect edges
 				var edgeAttrs string
+				styleExtra := ""
+				if !edge.Direct {
+					styleExtra = ", style=\"dashed\""
+				}
+				
 				if bothRDMA {
 					// Both sides have RDMA - thick, colored edge
-					edgeAttrs = fmt.Sprintf(" [label=\"%s\", color=\"blue\", penwidth=2.0]", edgeLabel)
+					edgeAttrs = fmt.Sprintf(" [label=\"%s\", color=\"blue\", penwidth=2.0%s]", edgeLabel, styleExtra)
 				} else if hasLocalRDMA || hasRemoteRDMA {
 					// Only one side has RDMA - normal edge
-					edgeAttrs = fmt.Sprintf(" [label=\"%s\"]", edgeLabel)
+					if styleExtra != "" {
+						edgeAttrs = fmt.Sprintf(" [label=\"%s\"%s]", edgeLabel, styleExtra)
+					} else {
+						edgeAttrs = fmt.Sprintf(" [label=\"%s\"]", edgeLabel)
+					}
 				} else {
 					// No RDMA - normal edge
-					edgeAttrs = fmt.Sprintf(" [label=\"%s\"]", edgeLabel)
+					if styleExtra != "" {
+						edgeAttrs = fmt.Sprintf(" [label=\"%s\"%s]", edgeLabel, styleExtra)
+					} else {
+						edgeAttrs = fmt.Sprintf(" [label=\"%s\"]", edgeLabel)
+					}
 				}
 				
 				sb.WriteString(fmt.Sprintf("  \"%s\" -- \"%s\"%s;\n",

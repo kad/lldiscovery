@@ -5,6 +5,16 @@ import (
 	"time"
 )
 
+type NeighborData struct {
+	MachineID    string
+	Hostname     string
+	Interface    string
+	Address      string
+	RDMADevice   string
+	NodeGUID     string
+	SysImageGUID string
+}
+
 type InterfaceDetails struct {
 	IPAddress    string
 	RDMADevice   string
@@ -31,6 +41,8 @@ type Edge struct {
 	RemoteRDMADevice   string
 	RemoteNodeGUID     string
 	RemoteSysImageGUID string
+	Direct             bool
+	LearnedFrom        string
 }
 
 type Graph struct {
@@ -62,7 +74,7 @@ func (g *Graph) SetLocalNode(machineID, hostname string, interfaces map[string]I
 	g.changed = true
 }
 
-func (g *Graph) AddOrUpdate(machineID, hostname, remoteIface, sourceIP, receivingIface, rdmaDevice, nodeGUID, sysImageGUID string) {
+func (g *Graph) AddOrUpdate(machineID, hostname, remoteIface, sourceIP, receivingIface, rdmaDevice, nodeGUID, sysImageGUID string, direct bool, learnedFrom string) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
@@ -99,16 +111,18 @@ func (g *Graph) AddOrUpdate(machineID, hostname, remoteIface, sourceIP, receivin
 	}
 	
 	// Track edge (connection between interfaces)
-	if g.localNode != nil && receivingIface != "" {
+	if g.localNode != nil {
+		// For indirect edges, receivingIface may be empty
 		if _, ok := g.edges[g.localNode.MachineID]; !ok {
 			g.edges[g.localNode.MachineID] = make(map[string][]*Edge)
 		}
 		
-		// Get local interface details
-		localDetails, localExists := g.localNode.Interfaces[receivingIface]
-		if !localExists {
-			// This shouldn't happen, but handle gracefully
-			localDetails = InterfaceDetails{IPAddress: "unknown"}
+		// Get local interface details (only for direct edges)
+		localDetails := InterfaceDetails{}
+		if receivingIface != "" {
+			if ld, localExists := g.localNode.Interfaces[receivingIface]; localExists {
+				localDetails = ld
+			}
 		}
 		
 		edge := &Edge{
@@ -122,16 +136,25 @@ func (g *Graph) AddOrUpdate(machineID, hostname, remoteIface, sourceIP, receivin
 			RemoteRDMADevice:   rdmaDevice,
 			RemoteNodeGUID:     nodeGUID,
 			RemoteSysImageGUID: sysImageGUID,
+			Direct:             direct,
+			LearnedFrom:        learnedFrom,
 		}
 		
 		// Check if this exact edge already exists
 		edges := g.edges[g.localNode.MachineID][machineID]
 		found := false
-		for _, existingEdge := range edges {
+		for i, existingEdge := range edges {
+			// Match on interfaces (both may be empty for indirect edges with no local iface info)
 			if existingEdge.LocalInterface == edge.LocalInterface &&
 				existingEdge.RemoteInterface == edge.RemoteInterface {
-				// Update existing edge
-				*existingEdge = *edge
+				// Upgrade indirect edge to direct if direct packet arrives
+				if !existingEdge.Direct && direct {
+					edges[i] = edge
+					g.changed = true
+				} else if existingEdge.Direct == direct {
+					// Update existing edge of same type
+					*existingEdge = *edge
+				}
 				found = true
 				break
 			}
@@ -151,12 +174,65 @@ func (g *Graph) RemoveExpired(timeout time.Duration) int {
 
 	now := time.Now()
 	removed := 0
+	expiredMachineIDs := []string{}
 
 	for machineID, node := range g.nodes {
 		if now.Sub(node.LastSeen) > timeout {
 			delete(g.nodes, machineID)
+			expiredMachineIDs = append(expiredMachineIDs, machineID)
 			removed++
 			g.changed = true
+		}
+	}
+
+	// Cascading deletion: remove edges learned from expired nodes
+	if len(expiredMachineIDs) > 0 {
+		for srcID, dstMap := range g.edges {
+			for dstID, edges := range dstMap {
+				// Remove edges to/from expired nodes
+				shouldDeleteAll := false
+				for _, expiredID := range expiredMachineIDs {
+					if srcID == expiredID || dstID == expiredID {
+						shouldDeleteAll = true
+						break
+					}
+				}
+				
+				if shouldDeleteAll {
+					delete(dstMap, dstID)
+					if len(dstMap) == 0 {
+						delete(g.edges, srcID)
+					}
+					g.changed = true
+					continue
+				}
+				
+				// Filter out indirect edges learned from expired nodes
+				filteredEdges := make([]*Edge, 0, len(edges))
+				for _, edge := range edges {
+					isLearnedFromExpired := false
+					for _, expiredID := range expiredMachineIDs {
+						if edge.LearnedFrom == expiredID {
+							isLearnedFromExpired = true
+							break
+						}
+					}
+					if !isLearnedFromExpired {
+						filteredEdges = append(filteredEdges, edge)
+					} else {
+						g.changed = true
+					}
+				}
+				
+				if len(filteredEdges) == 0 {
+					delete(dstMap, dstID)
+					if len(dstMap) == 0 {
+						delete(g.edges, srcID)
+					}
+				} else if len(filteredEdges) != len(edges) {
+					g.edges[srcID][dstID] = filteredEdges
+				}
+			}
 		}
 	}
 
@@ -223,9 +299,49 @@ func (g *Graph) GetEdges() map[string]map[string][]*Edge {
 					RemoteRDMADevice:   edge.RemoteRDMADevice,
 					RemoteNodeGUID:     edge.RemoteNodeGUID,
 					RemoteSysImageGUID: edge.RemoteSysImageGUID,
+					Direct:             edge.Direct,
+					LearnedFrom:        edge.LearnedFrom,
 				}
 			}
 			result[src][dst] = edgeCopies
+		}
+	}
+
+	return result
+}
+
+func (g *Graph) GetDirectNeighbors() []NeighborData {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+
+	result := []NeighborData{}
+	
+	if g.localNode == nil {
+		return result
+	}
+
+	// Get all direct edges from local node
+	if localEdges, ok := g.edges[g.localNode.MachineID]; ok {
+		for dstID, edges := range localEdges {
+			for _, edge := range edges {
+				if edge.Direct {
+					// Get remote node info
+					node, exists := g.nodes[dstID]
+					if !exists {
+						continue
+					}
+					
+					result = append(result, NeighborData{
+						MachineID:    dstID,
+						Hostname:     node.Hostname,
+						Interface:    edge.RemoteInterface,
+						Address:      edge.RemoteAddress,
+						RDMADevice:   edge.RemoteRDMADevice,
+						NodeGUID:     edge.RemoteNodeGUID,
+						SysImageGUID: edge.RemoteSysImageGUID,
+					})
+				}
+			}
 		}
 	}
 
@@ -242,4 +358,13 @@ func (g *Graph) ClearChanges() {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	g.changed = false
+}
+
+func (g *Graph) GetLocalMachineID() string {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+	if g.localNode != nil {
+		return g.localNode.MachineID
+	}
+	return ""
 }

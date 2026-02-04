@@ -3,6 +3,15 @@
 ## [Unreleased]
 
 ### Added
+- **Transitive Topology Discovery**: Build complete network topology including indirect connections
+  - Disabled by default (`include_neighbors: false`) for backward compatibility
+  - When enabled, each daemon shares its direct neighbor list in discovery packets
+  - Creates indirect edges (dashed lines) for hosts learned through other hosts
+  - Cascading expiration: indirect edges removed when source node expires
+  - Edge upgrades: indirect edges automatically upgraded to direct when direct connection established
+  - Topology depth limited to 1-hop (only direct neighbors shared) to prevent packet size explosion
+  - Backward compatible: old daemons ignore neighbors field, new daemons work without it
+  - See [TRANSITIVE_DISCOVERY.md](TRANSITIVE_DISCOVERY.md) for complete guide
 - **RDMA-to-RDMA Edge Marking**: Visual distinction for full RDMA connections
   - Edges with RDMA on both sides marked with `[RDMA-to-RDMA]` label
   - RDMA-to-RDMA edges displayed in **blue** with **thick lines** (penwidth=2.0)
