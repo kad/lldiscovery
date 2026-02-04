@@ -1,0 +1,26 @@
+[Unit]
+Description=Link-Layer Discovery Daemon
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/lldiscovery -config /etc/lldiscovery/config.json
+Restart=always
+RestartSec=10
+User=lldiscovery
+Group=lldiscovery
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/lldiscovery
+
+# Required for network operations
+AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
+CapabilityBoundingSet=CAP_NET_RAW CAP_NET_ADMIN
+
+[Install]
+WantedBy=multi-user.target

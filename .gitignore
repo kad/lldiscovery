@@ -1,0 +1,5 @@
+/lldiscovery
+*.dot
+*.png
+*.svg
+/var/
