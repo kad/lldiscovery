@@ -131,15 +131,41 @@ func getRDMADeviceMapping() map[string]string {
 
 // getRDMADeviceForInterface finds the RDMA device associated with a network interface
 func getRDMADeviceForInterface(ifaceName string) string {
-	// Check /sys/class/net/<ifaceName>/device/infiniband/
+	// First try hardware RDMA: /sys/class/net/<ifaceName>/device/infiniband/
 	devicePath := fmt.Sprintf("/sys/class/net/%s/device/infiniband", ifaceName)
 	entries, err := os.ReadDir(devicePath)
-	if err != nil || len(entries) == 0 {
+	if err == nil && len(entries) > 0 {
+		// Return the first RDMA device found
+		return entries[0].Name()
+	}
+
+	// For software RDMA (RXE), check if any RDMA device has this interface as parent
+	ibPath := "/sys/class/infiniband"
+	ibEntries, err := os.ReadDir(ibPath)
+	if err != nil {
 		return ""
 	}
 
-	// Return the first RDMA device found
-	return entries[0].Name()
+	for _, entry := range ibEntries {
+		// Follow symlinks - RXE devices are symlinks in /sys/class/infiniband/
+		entryPath := filepath.Join(ibPath, entry.Name())
+		info, err := os.Stat(entryPath)
+		if err != nil || !info.IsDir() {
+			continue
+		}
+		
+		// Check parent file for RXE devices
+		parentFile := filepath.Join(ibPath, entry.Name(), "parent")
+		parentData, err := os.ReadFile(parentFile)
+		if err == nil {
+			parent := strings.TrimSpace(string(parentData))
+			if parent == ifaceName {
+				return entry.Name()
+			}
+		}
+	}
+
+	return ""
 }
 
 // getRDMANodeGUID reads the node GUID for an RDMA device
@@ -173,23 +199,36 @@ func GetRDMADevices() (map[string][]string, error) {
 	}
 
 	for _, entry := range entries {
-		if !entry.IsDir() {
+		// Follow symlinks - RXE devices are symlinks in /sys/class/infiniband/
+		entryPath := filepath.Join(ibPath, entry.Name())
+		info, err := os.Stat(entryPath)
+		if err != nil || !info.IsDir() {
 			continue
 		}
 
 		rdmaDevice := entry.Name()
 		
-		// Find parent network interfaces for this RDMA device
-		// Check /sys/class/infiniband/<device>/device/net/
+		// Try hardware RDMA: /sys/class/infiniband/<device>/device/net/
 		netPath := filepath.Join(ibPath, rdmaDevice, "device", "net")
 		netEntries, err := os.ReadDir(netPath)
-		if err != nil {
-			continue
-		}
-
+		
 		var parentIfaces []string
-		for _, netEntry := range netEntries {
-			parentIfaces = append(parentIfaces, netEntry.Name())
+		
+		if err == nil && len(netEntries) > 0 {
+			// Hardware RDMA device
+			for _, netEntry := range netEntries {
+				parentIfaces = append(parentIfaces, netEntry.Name())
+			}
+		} else {
+			// Try software RDMA (RXE): check parent file
+			parentFile := filepath.Join(ibPath, rdmaDevice, "parent")
+			parentData, err := os.ReadFile(parentFile)
+			if err == nil {
+				parent := strings.TrimSpace(string(parentData))
+				if parent != "" {
+					parentIfaces = append(parentIfaces, parent)
+				}
+			}
 		}
 
 		if len(parentIfaces) > 0 {

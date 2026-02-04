@@ -15,6 +15,8 @@ Network discovery daemon for VLAN-segmented environments using IPv6 link-local m
 - **Smart interface display**: Only shows interfaces with active connections in the graph
 - **Local node tracking**: Includes the local host in the topology graph
 - **RDMA/InfiniBand support**: Detects RDMA devices and includes node_guid, sys_image_guid, and device names
+  - Hardware RDMA: InfiniBand adapters (Mellanox/NVIDIA ConnectX, Intel TrueScale, etc.)
+  - Software RDMA: RoCE (RDMA over Converged Ethernet) and Soft-RoCE (RXE)
 - **Multiple export formats**: DOT file for Graphviz + JSON over HTTP API
 - **VLAN-aware**: Discovers hosts per-interface, showing segmentation
 - **Configurable**: Timing, ports, and paths via config file or defaults
@@ -300,11 +302,12 @@ sudo firewall-cmd --reload
 - **EXAMPLE_OUTPUT.md** - Sample outputs and visualization examples
 - **OPENTELEMETRY.md** - Observability setup guide
 - **MULTICAST_ADDRESS.md** - Why we use ff02::4c4c:6469
-- **DEBUG_LOGGING.md** - Debug logging guide
+- **DEBUG_LOGGING.md** - Debug logging guide with packet content
 - **GRAPH_EDGES_IB.md** - Graph edges and InfiniBand support
 - **LOCAL_NODE_FEATURE.md** - Local node highlighting
 - **RDMA_EDGE_LABELS.md** - RDMA information on edge labels
 - **RDMA_INFORMATION_FLOW.md** - Complete RDMA data flow verification
+- **SOFT_ROCE_RXE.md** - Soft-RoCE (RXE) software RDMA support
 
 ## License
 

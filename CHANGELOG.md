@@ -3,6 +3,12 @@
 ## [Unreleased]
 
 ### Added
+- **Soft-RoCE (RXE) Support**: Full detection of software RDMA devices
+  - Detects RXE interfaces created with `rxe` kernel module
+  - Reads parent interface from `/sys/class/infiniband/<device>/parent` file
+  - Works alongside hardware RDMA detection (InfiniBand, Mellanox adapters)
+  - Includes Node GUID and Sys Image GUID for RXE devices
+  - RXE devices correctly associated with their parent Ethernet interfaces
 - **Packet Content in Debug Logs**: Complete JSON packet content shown in debug logs
   - Sent packets include full JSON in `content` field
   - Received packets include full JSON in `content` field
