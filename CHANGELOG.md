@@ -3,6 +3,10 @@
 ## [Unreleased]
 
 ### Added
+- **Smart Output File Selection**: Automatically falls back to `./topology.dot` if `/var/lib/lldiscovery/` is not writable
+  - No more permission errors when running as non-root user
+  - Startup log shows which output file path is being used
+  - Can still override with explicit `output_file` configuration
 - **OpenTelemetry Support**: Built-in observability with OTLP export
   - Distributed tracing for discovery operations
   - Metrics for packets, nodes, errors (8 metrics total)

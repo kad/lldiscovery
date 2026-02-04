@@ -50,6 +50,7 @@ func main() {
 		"send_interval", cfg.SendInterval,
 		"node_timeout", cfg.NodeTimeout,
 		"export_interval", cfg.ExportInterval,
+		"output_file", cfg.OutputFile,
 		"telemetry_enabled", cfg.Telemetry.Enabled)
 
 	ctx, cancel := context.WithCancel(context.Background())

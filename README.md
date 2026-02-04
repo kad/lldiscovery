@@ -49,7 +49,7 @@ sudo systemctl start lldiscovery
 ### Run manually
 
 ```bash
-# With default configuration
+# With default configuration (outputs to ./topology.dot if not running as root)
 ./lldiscovery
 
 # With custom config
@@ -61,6 +61,11 @@ sudo systemctl start lldiscovery
 # Show version
 ./lldiscovery -version
 ```
+
+**Note:** The daemon automatically selects an output file location:
+- If running with permissions to write to `/var/lib/lldiscovery/`, uses `/var/lib/lldiscovery/topology.dot`
+- Otherwise, falls back to `./topology.dot` in the current directory
+- You can override this by setting `output_file` in the configuration
 
 ### Configuration
 
@@ -86,7 +91,7 @@ Configuration file (JSON format):
 - `export_interval`: How often to check for changes and export (default: 60s)
 - `multicast_address`: IPv6 multicast address (default: ff02::4c4c:6469 - see note below)
 - `multicast_port`: UDP port for discovery protocol (default: 9999)
-- `output_file`: Path to DOT file output (default: /var/lib/lldiscovery/topology.dot)
+- `output_file`: Path to DOT file output (default: `/var/lib/lldiscovery/topology.dot` if writable, otherwise `./topology.dot`)
 - `http_address`: HTTP server bind address (default: :8080)
 - `log_level`: Logging level: debug, info, warn, error (default: info)
 
@@ -241,6 +246,8 @@ sudo firewall-cmd --reload
 - Verify write permissions for `output_file` directory
 - Check `export_interval` setting
 - Look for errors in logs: `journalctl -u lldiscovery -f`
+- If running as non-root, graph exports to `./topology.dot` in current directory
+- Check startup log for `output_file` location: `output_file=./topology.dot` or `output_file=/var/lib/lldiscovery/topology.dot`
 
 ## Architecture
 

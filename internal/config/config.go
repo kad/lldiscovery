@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"time"
 )
 
@@ -35,7 +36,7 @@ func Default() *Config {
 		ExportInterval: 60 * time.Second,
 		MulticastAddr:  "ff02::4c4c:6469",
 		MulticastPort:  9999,
-		OutputFile:     "/var/lib/lldiscovery/topology.dot",
+		OutputFile:     getDefaultOutputFile(),
 		HTTPAddress:    ":8080",
 		LogLevel:       "info",
 		Telemetry: TelemetryConfig{
@@ -48,6 +49,25 @@ func Default() *Config {
 			EnableLogs:    false,
 		},
 	}
+}
+
+func getDefaultOutputFile() string {
+	defaultPath := "/var/lib/lldiscovery/topology.dot"
+	dir := filepath.Dir(defaultPath)
+	
+	// Check if directory exists and is writable
+	if err := os.MkdirAll(dir, 0755); err == nil {
+		// Try to create a test file to verify write permission
+		testFile := filepath.Join(dir, ".write_test")
+		if f, err := os.Create(testFile); err == nil {
+			f.Close()
+			os.Remove(testFile)
+			return defaultPath
+		}
+	}
+	
+	// Fallback to current directory if default path not writable
+	return "./topology.dot"
 }
 
 func Load(path string) (*Config, error) {
@@ -107,6 +127,9 @@ func Load(path string) (*Config, error) {
 	}
 	if rawConfig.HTTPAddress != "" {
 		cfg.HTTPAddress = rawConfig.HTTPAddress
+	}
+	if rawConfig.OutputFile != "" {
+		cfg.OutputFile = rawConfig.OutputFile
 	}
 	if rawConfig.LogLevel != "" {
 		cfg.LogLevel = rawConfig.LogLevel

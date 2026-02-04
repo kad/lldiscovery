@@ -7,12 +7,14 @@
 # Build
 make build
 
-# Run in debug mode
+# Run in debug mode (outputs to ./topology.dot)
 ./lldiscovery -log-level debug
 
 # Or with custom config
 ./lldiscovery -config config.example.json
 ```
+
+**Note:** When running as a regular user, the daemon saves the graph to `./topology.dot` in the current directory. When running as root or with a systemd service, it uses `/var/lib/lldiscovery/topology.dot`.
 
 ### Option 2: Production deployment
 
@@ -68,8 +70,10 @@ brew install graphviz          # macOS
 # Generate topology image from HTTP API
 curl http://localhost:8080/graph.dot | dot -Tpng -o topology.png
 
-# Or from file (if daemon is running with file export)
-dot -Tpng /var/lib/lldiscovery/topology.dot -o topology.png
+# Or from file (check daemon logs for actual path)
+# If running as user: ./topology.dot
+# If running as root: /var/lib/lldiscovery/topology.dot
+dot -Tpng ./topology.dot -o topology.png
 
 # SVG format (better for web viewing)
 curl http://localhost:8080/graph.dot | dot -Tsvg -o topology.svg
