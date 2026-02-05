@@ -250,11 +250,11 @@ func main() {
 					neighbor.RemoteRDMADevice, // Neighbor's RDMA
 					neighbor.RemoteNodeGUID,
 					neighbor.RemoteSysImageGUID,
-					neighbor.RemoteSpeed,      // Neighbor's speed
-					neighbor.RemotePrefixes,   // Neighbor's prefixes
-					neighbor.LocalInterface,   // Sender's interface (connecting to neighbor)
-					neighbor.LocalAddress,     // Sender's address
-					neighbor.LocalRDMADevice,  // Sender's RDMA
+					neighbor.RemoteSpeed,     // Neighbor's speed
+					neighbor.RemotePrefixes,  // Neighbor's prefixes
+					neighbor.LocalInterface,  // Sender's interface (connecting to neighbor)
+					neighbor.LocalAddress,    // Sender's address
+					neighbor.LocalRDMADevice, // Sender's RDMA
 					neighbor.LocalNodeGUID,
 					neighbor.LocalSysImageGUID,
 					neighbor.LocalSpeed,    // Sender's speed

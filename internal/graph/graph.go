@@ -124,7 +124,7 @@ func (g *Graph) AddOrUpdate(machineID, hostname, remoteIface, sourceIP, receivin
 		Speed:          remoteSpeed,
 	}
 
-	if existing, ok := node.Interfaces[remoteIface]; !ok || existing.IPAddress != details.IPAddress || 
+	if existing, ok := node.Interfaces[remoteIface]; !ok || existing.IPAddress != details.IPAddress ||
 		existing.RDMADevice != details.RDMADevice || existing.Speed != details.Speed {
 		node.Interfaces[remoteIface] = details
 		g.changed = true
@@ -540,11 +540,11 @@ func (g *Graph) GetNetworkSegments() []NetworkSegment {
 		for remoteID, edgeList := range localEdges {
 			for _, edge := range edgeList {
 				localIface := edge.LocalInterface
-				
+
 				if interfaceGroups[localIface] == nil {
 					interfaceGroups[localIface] = make(map[string]*Edge)
 				}
-				
+
 				// Prefer direct edges over indirect
 				if existing, ok := interfaceGroups[localIface][remoteID]; !ok || (!existing.Direct && edge.Direct) {
 					interfaceGroups[localIface][remoteID] = edge
@@ -561,12 +561,12 @@ func (g *Graph) GetNetworkSegments() []NetworkSegment {
 			// Collect node IDs (local + all remotes)
 			nodeIDs := []string{localID}
 			edgeInfo := make(map[string]*Edge)
-			
+
 			for remoteID, edge := range remoteNodes {
 				nodeIDs = append(nodeIDs, remoteID)
 				edgeInfo[remoteID] = edge
 			}
-			
+
 			sort.Strings(nodeIDs)
 
 			// Determine network prefix hint
@@ -608,16 +608,16 @@ func (g *Graph) GetNetworkSegments() []NetworkSegment {
 				// This indicates they're on the same VLAN
 				if edge.LocalInterface == edge.RemoteInterface {
 					ifaceName := edge.LocalInterface
-					
+
 					// Skip if local node already has a segment on this interface
 					if localInterfaces[ifaceName] {
 						continue
 					}
-					
+
 					if remoteInterfaceGroups[ifaceName] == nil {
 						remoteInterfaceGroups[ifaceName] = make(map[string]*Edge)
 					}
-					
+
 					// Add both source and destination to this interface group
 					if _, exists := remoteInterfaceGroups[ifaceName][srcID]; !exists {
 						remoteInterfaceGroups[ifaceName][srcID] = edge
@@ -718,11 +718,11 @@ func (g *Graph) GetNetworkSegments() []NetworkSegment {
 // from the given set of nodes and their edges. Returns empty string if no prefixes found.
 func (g *Graph) getMostCommonPrefix(nodeIDs []string, edgeInfo map[string]*Edge) string {
 	prefixCount := make(map[string]int)
-	
+
 	// Collect prefixes from each node's interface
 	for _, nodeID := range nodeIDs {
 		var prefixes []string
-		
+
 		if nodeID == g.localNode.MachineID {
 			// For local node, get prefixes from the edge's local interface
 			for _, edge := range edgeInfo {
@@ -741,7 +741,7 @@ func (g *Graph) getMostCommonPrefix(nodeIDs []string, edgeInfo map[string]*Edge)
 				}
 			}
 		}
-		
+
 		// Count each prefix
 		for _, prefix := range prefixes {
 			if prefix != "" {
@@ -749,7 +749,7 @@ func (g *Graph) getMostCommonPrefix(nodeIDs []string, edgeInfo map[string]*Edge)
 			}
 		}
 	}
-	
+
 	// Find most common prefix
 	maxCount := 0
 	mostCommon := ""
@@ -759,7 +759,7 @@ func (g *Graph) getMostCommonPrefix(nodeIDs []string, edgeInfo map[string]*Edge)
 			mostCommon = prefix
 		}
 	}
-	
+
 	return mostCommon
 }
 

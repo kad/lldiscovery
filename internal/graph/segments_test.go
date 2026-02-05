@@ -41,9 +41,9 @@ func TestGetNetworkSegments_ThreeNeighbors(t *testing.T) {
 	// With transitive discovery, A learns that B, C, D are also connected to each other
 	// This forms a clique: A-B-C-D all mutually connected on eth0
 	// Simulate indirect edges: B->C, B->D, C->B, C->D, D->B, D->C
-	g.AddOrUpdateIndirectEdge("machine-c", "host-c", "eth0", "fe80::3", 
-		"", "", "", 0, nil,  // neighbor RDMA info + prefixes
-		"eth0", "fe80::2", "", "", "", 0, nil,  // intermediate (B) info + prefixes
+	g.AddOrUpdateIndirectEdge("machine-c", "host-c", "eth0", "fe80::3",
+		"", "", "", 0, nil, // neighbor RDMA info + prefixes
+		"eth0", "fe80::2", "", "", "", 0, nil, // intermediate (B) info + prefixes
 		"machine-b")
 	g.AddOrUpdateIndirectEdge("machine-d", "host-d", "eth0", "fe80::4",
 		"", "", "", 0, nil,
@@ -118,7 +118,7 @@ func TestGetNetworkSegments_BelowThreshold(t *testing.T) {
 	if len(segments) != 1 {
 		t.Errorf("expected 1 segment (3 nodes on eth0), got %d", len(segments))
 	}
-	
+
 	if len(segments) > 0 && len(segments[0].ConnectedNodes) != 3 {
 		t.Errorf("expected 3 nodes in segment, got %d", len(segments[0].ConnectedNodes))
 	}

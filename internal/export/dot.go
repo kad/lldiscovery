@@ -46,7 +46,7 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 	if len(segments) > 0 {
 		sb.WriteString("  layout=fdp;\n")
 	} else {
-		sb.WriteString("  rankdir=LR;\n")  // Left-to-right for non-segment graphs
+		sb.WriteString("  rankdir=LR;\n") // Left-to-right for non-segment graphs
 	}
 	sb.WriteString("  node [shape=box, style=rounded];\n")
 	sb.WriteString("  // Each machine is a subgraph (cluster) with interface nodes\n")
@@ -78,7 +78,7 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 					// Get the interfaces these nodes use to connect to this segment
 					interfaceA := segment.Interface
 					interfaceB := segment.Interface
-					
+
 					// Try to get specific interface from edge info
 					if edgeInfo, ok := segment.EdgeInfo[nodeA]; ok {
 						interfaceA = edgeInfo.RemoteInterface
@@ -346,7 +346,7 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 				// Build edge attributes - highlight RDMA-to-RDMA connections and indirect edges
 				var edgeAttrs string
 				var styleExtra string
-				
+
 				if edge.Direct {
 					// Direct links: bold (solid with thicker line)
 					styleExtra = ", style=\"bold\""
