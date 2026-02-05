@@ -3,7 +3,6 @@ package graph
 import (
 	"fmt"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 )
@@ -486,7 +485,7 @@ type NetworkSegment struct {
 }
 
 // GetNetworkSegments finds groups of nodes connected to shared network segments
-// A segment is detected when the local node can reach 3+ other nodes on the same interface
+// A segment is detected when the local node can reach 3+ other nodes on the same LOCAL interface
 func (g *Graph) GetNetworkSegments() []NetworkSegment {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
@@ -500,134 +499,53 @@ func (g *Graph) GetNetworkSegments() []NetworkSegment {
 
 	localID := g.localNode.MachineID
 
-	// Step 1: Build a graph of node:interface pairs from all edges
-	// Map: "nodeID:interface" -> set of "otherNodeID:otherInterface"
-	connectivity := make(map[string]map[string]bool)
+	// Get all edges from local node
+	localEdges, ok := g.edges[localID]
+	if !ok {
+		return segments
+	}
 
-	// Scan ALL edges (direct and indirect are treated equally)
-	for srcID, dests := range g.edges {
-		for dstID, edgeList := range dests {
-			for _, edge := range edgeList {
-				// Create keys for source and destination node:interface pairs
-				srcKey := fmt.Sprintf("%s:%s", srcID, edge.LocalInterface)
-				dstKey := fmt.Sprintf("%s:%s", dstID, edge.RemoteInterface)
+	// Group remote nodes by LOCAL interface
+	// Map: local interface name -> list of remote node IDs
+	interfaceGroups := make(map[string]map[string]*Edge) // [local_iface][remote_node] = edge
 
-				// Add bidirectional edge
-				if connectivity[srcKey] == nil {
-					connectivity[srcKey] = make(map[string]bool)
-				}
-				connectivity[srcKey][dstKey] = true
-
-				if connectivity[dstKey] == nil {
-					connectivity[dstKey] = make(map[string]bool)
-				}
-				connectivity[dstKey][srcKey] = true
+	for remoteID, edgeList := range localEdges {
+		for _, edge := range edgeList {
+			localIface := edge.LocalInterface
+			
+			if interfaceGroups[localIface] == nil {
+				interfaceGroups[localIface] = make(map[string]*Edge)
+			}
+			
+			// Prefer direct edges over indirect
+			if existing, ok := interfaceGroups[localIface][remoteID]; !ok || (!existing.Direct && edge.Direct) {
+				interfaceGroups[localIface][remoteID] = edge
 			}
 		}
 	}
 
-	// Step 2: Find connected components using BFS
-	// Each component represents a VLAN
-	visited := make(map[string]bool)
-	var vlans [][]string
-
-	for startNodeIface := range connectivity {
-		if visited[startNodeIface] {
-			continue
-		}
-
-		// BFS to find all node:interface pairs in this VLAN
-		vlan := []string{}
-		queue := []string{startNodeIface}
-		visited[startNodeIface] = true
-
-		for len(queue) > 0 {
-			current := queue[0]
-			queue = queue[1:]
-			vlan = append(vlan, current)
-
-			// Add all neighbors to the queue
-			for neighbor := range connectivity[current] {
-				if !visited[neighbor] {
-					visited[neighbor] = true
-					queue = append(queue, neighbor)
-				}
-			}
-		}
-
-		vlans = append(vlans, vlan)
-	}
-
-	// Step 3: Convert VLANs to NetworkSegment format
+	// Create segments for interfaces with 3+ nodes
 	segmentID := 0
-	for _, vlan := range vlans {
-		// Extract unique node IDs and interface names
-		nodeSet := make(map[string]bool)
-		interfaceSet := make(map[string]bool)
-
-		for _, nodeIface := range vlan {
-			parts := strings.SplitN(nodeIface, ":", 2)
-			if len(parts) == 2 {
-				nodeSet[parts[0]] = true
-				interfaceSet[parts[1]] = true
-			}
-		}
-
-		// Filter: Only keep VLANs with 3+ unique nodes
-		// 2-node connections are peer-to-peer links, not shared networks
-		if len(nodeSet) < 3 {
+	for localIface, remoteNodes := range interfaceGroups {
+		// Need at least 3 nodes (2 remote + 1 local) to be a shared network
+		if len(remoteNodes) < 2 {
 			continue
 		}
 
-		// Create sorted list of node IDs
-		nodeIDs := make([]string, 0, len(nodeSet))
-		for nodeID := range nodeSet {
-			nodeIDs = append(nodeIDs, nodeID)
-		}
-		sort.Strings(nodeIDs)
-
-		// Determine interface label for the VLAN
-		var vlanInterface string
-		if len(interfaceSet) == 1 {
-			// All use same interface name
-			for iface := range interfaceSet {
-				vlanInterface = iface
-			}
-		} else {
-			// Mixed interface names
-			interfaces := make([]string, 0, len(interfaceSet))
-			for iface := range interfaceSet {
-				interfaces = append(interfaces, iface)
-			}
-			sort.Strings(interfaces)
-			if len(interfaces) <= 3 {
-				vlanInterface = strings.Join(interfaces, "+")
-			} else {
-				vlanInterface = fmt.Sprintf("mixed(%d)", len(interfaces))
-			}
-		}
-
-		// Collect edge info from local node to VLAN members
+		// Collect node IDs (local + all remotes)
+		nodeIDs := []string{localID}
 		edgeInfo := make(map[string]*Edge)
-		if localEdges, ok := g.edges[localID]; ok {
-			for _, nodeID := range nodeIDs {
-				if nodeID == localID {
-					continue
-				}
-				if edges, ok := localEdges[nodeID]; ok {
-					// Prefer direct edges over indirect
-					for _, edge := range edges {
-						if existing, ok := edgeInfo[nodeID]; !ok || (!existing.Direct && edge.Direct) {
-							edgeInfo[nodeID] = edge
-						}
-					}
-				}
-			}
+		
+		for remoteID, edge := range remoteNodes {
+			nodeIDs = append(nodeIDs, remoteID)
+			edgeInfo[remoteID] = edge
 		}
+		
+		sort.Strings(nodeIDs)
 
 		segments = append(segments, NetworkSegment{
 			ID:             fmt.Sprintf("segment_%d", segmentID),
-			Interface:      vlanInterface,
+			Interface:      localIface,
 			ConnectedNodes: nodeIDs,
 			EdgeInfo:       edgeInfo,
 		})
