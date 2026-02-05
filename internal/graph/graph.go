@@ -2,6 +2,7 @@ package graph
 
 import (
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 )
@@ -475,74 +476,88 @@ func (g *Graph) GetDirectNeighbors() []NeighborData {
 	return result
 }
 
-// NetworkSegment represents a shared network segment (switch/VLAN)
+// NetworkSegment represents a group of nodes reachable on a shared network (switch/VLAN)
 type NetworkSegment struct {
-	ID             string   // Unique ID: "nodeID:interface"
-	Interface      string   // Interface name (e.g., "eth0")
-	OwnerNodeID    string   // Node that owns this interface
-	ConnectedNodes []string // Machine IDs of nodes on this segment
-	IsComplete     bool     // True if all nodes can see each other (complete island)
+	ID             string            // Unique ID for this segment
+	Interface      string            // Local interface name (e.g., "eth0")
+	ConnectedNodes []string          // Machine IDs of nodes in this segment
+	EdgeInfo       map[string]*Edge  // Map of nodeID -> edge info for connections to segment
 }
 
-// GetNetworkSegments detects shared network segments (3+ nodes on same interface)
+// GetNetworkSegments finds groups of nodes connected to shared network segments
+// A segment is detected when the local node can reach 3+ other nodes on the same interface
 func (g *Graph) GetNetworkSegments() []NetworkSegment {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
 
 	var segments []NetworkSegment
 
-	// For each node, check interfaces
-	allNodes := make(map[string]*Node)
-	if g.localNode != nil {
-		allNodes[g.localNode.MachineID] = g.localNode
-	}
-	for k, v := range g.nodes {
-		allNodes[k] = v
+	// Only meaningful if we have a local node
+	if g.localNode == nil {
+		return segments
 	}
 
-	for nodeID := range allNodes {
-		// Get edges from this node
-		nodeEdges, exists := g.edges[nodeID]
-		if !exists {
-			continue
-		}
+	localID := g.localNode.MachineID
+	localEdges, exists := g.edges[localID]
+	if !exists {
+		return segments
+	}
 
-		// Group neighbors by local interface
-		interfaceNeighbors := make(map[string][]string)
-		for remoteID, edges := range nodeEdges {
-			for _, edge := range edges {
-				// Track which interface connects to which remote nodes
+	// Group neighbors by local interface, also collecting edge info
+	interfaceNeighbors := make(map[string][]string)
+	interfaceEdges := make(map[string]map[string]*Edge) // [interface][remoteID] -> edge
+	
+	for remoteID, edges := range localEdges {
+		for _, edge := range edges {
+			if edge.LocalInterface != "" {
 				interfaceNeighbors[edge.LocalInterface] = append(
 					interfaceNeighbors[edge.LocalInterface],
 					remoteID,
 				)
-			}
-		}
-
-		// Create segment if 3+ nodes on same interface
-		for iface, neighbors := range interfaceNeighbors {
-			if len(neighbors) >= 3 {
-				// Remove duplicates
-				uniqueNeighbors := removeDuplicates(neighbors)
-
-				if len(uniqueNeighbors) >= 3 {
-					segment := NetworkSegment{
-						ID:             fmt.Sprintf("%s:%s", nodeID, iface),
-						Interface:      iface,
-						OwnerNodeID:    nodeID,
-						ConnectedNodes: uniqueNeighbors,
-						IsComplete:     g.isCompleteIsland(nodeID, uniqueNeighbors),
-					}
-					segments = append(segments, segment)
+				
+				// Store edge info for this interface
+				if interfaceEdges[edge.LocalInterface] == nil {
+					interfaceEdges[edge.LocalInterface] = make(map[string]*Edge)
+				}
+				// Store the first edge (or update if better - prefer direct over indirect)
+				if existing, ok := interfaceEdges[edge.LocalInterface][remoteID]; !ok || (!existing.Direct && edge.Direct) {
+					interfaceEdges[edge.LocalInterface][remoteID] = edge
 				}
 			}
 		}
 	}
 
+	// Create segment for each interface with 3+ neighbors
+	segmentID := 0
+	for iface, neighbors := range interfaceNeighbors {
+		// Remove duplicates
+		uniqueNeighbors := removeDuplicates(neighbors)
+
+		if len(uniqueNeighbors) >= 3 {
+			// Include local node in the segment
+			allNodes := append([]string{localID}, uniqueNeighbors...)
+			sort.Strings(allNodes)
+
+			// Collect edge info for all neighbors on this interface
+			edgeInfo := make(map[string]*Edge)
+			for _, nodeID := range uniqueNeighbors {
+				if edge, ok := interfaceEdges[iface][nodeID]; ok {
+					edgeInfo[nodeID] = edge
+				}
+			}
+
+			segments = append(segments, NetworkSegment{
+				ID:             fmt.Sprintf("segment_%s_%d", iface, segmentID),
+				Interface:      iface,
+				ConnectedNodes: allNodes,
+				EdgeInfo:       edgeInfo,
+			})
+			segmentID++
+		}
+	}
+
 	return segments
 }
-
-// isCompleteIsland checks if all nodes in a group can see each other
 func (g *Graph) isCompleteIsland(ownerID string, neighborIDs []string) bool {
 	// Check if each neighbor sees all other neighbors
 	for _, neighborID := range neighborIDs {
@@ -600,3 +615,5 @@ func (g *Graph) GetLocalMachineID() string {
 	}
 	return ""
 }
+
+// removeDuplicates returns a new slice with duplicate strings removed

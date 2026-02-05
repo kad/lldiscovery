@@ -30,21 +30,25 @@ lldiscovery -show-segments
 
 ### Detection Algorithm
 
-1. **Group by Interface**: For each host, group all neighbors by local interface
+1. **Group by Interface**: For local node, group all neighbors by local interface
 2. **Apply Threshold**: If 3+ neighbors exist on the same interface, create a segment
-3. **Verify Completeness**: Check if all neighbors can see each other (complete island)
-4. **Generate Visualization**: Create segment nodes in DOT graph
+3. **Collect Edge Info**: Store interface names, IPs, speeds, RDMA info for each connection
+4. **Generate Visualization**: Create segment nodes with detailed connection information
 
 ### Threshold
 
 - **Minimum neighbors**: 3+ (prevents creating segments for simple P2P connections)
 - **Includes both**: Direct edges (discovered locally) and indirect edges (learned from neighbors)
+- **Per-interface**: Segments detected independently for each local interface
 
-### Island Verification
+### Edge Information Preserved
 
-A segment is marked as a **complete island** when:
-- All neighbors can see each other (full mesh connectivity)
-- Indicates a true shared broadcast domain where all hosts are mutually reachable
+Each connection from segment to member node displays:
+- **Interface name**: Remote interface (e.g., "eth0")
+- **IP address**: Remote IPv6 link-local address (e.g., "fe80::2")
+- **Speed**: Link speed if available (e.g., "10000 Mbps")
+- **RDMA device**: Device name if RDMA-capable (e.g., "[mlx5_0]")
+- **Visual distinction**: Blue dotted lines for RDMA-to-RDMA connections
 
 ## Visualization
 
@@ -54,26 +58,38 @@ A segment is marked as a **complete island** when:
 - **Color**: Light yellow fill (`#ffffcc`)
 - **Border**: Black, thin line
 - **Label Format**:
-  - `segment: <interface>` - incomplete island
-  - `segment: <interface> *` - complete island (marked with asterisk)
+  - Line 1: `segment: <interface>` (e.g., "segment: eth0")
+  - Line 2: `<count> nodes` (e.g., "4 nodes")
+  - Line 3: `[RDMA]` (if all connections have RDMA)
+
+### Connection Styling
+
+- **Default**: Gray dotted lines with edge labels
+- **RDMA-to-RDMA**: Blue dotted lines, thicker (penwidth=2.0)
+- **Edge labels**: Show interface, IP, speed, RDMA device
 
 ### Graph Structure
 
 ```
 Before (-show-segments OFF):
-    host-a ---- host-b
-    host-a ---- host-c  
-    host-a ---- host-d
+    host-a ---- host-b (eth0, fe80::2, 10G, mlx5_0)
+    host-a ---- host-c (eth0, fe80::3, 10G, mlx5_1)  
+    host-a ---- host-d (eth0, fe80::4, 10G, mlx5_2)
 
 After (-show-segments ON):
-         segment_host-a_eth0
+         [segment: eth0]
+         [4 nodes] [RDMA]
         /       |        \
-    host-b   host-c   host-d
-       |
-    host-a
+    (details) (details) (details)
+     host-b   host-c   host-d
 ```
 
-The segment node represents the shared network (switch/VLAN) connecting all hosts on that interface.
+**What's hidden**: Only edges from local node (host-a) to segment members.
+
+**What's shown**: 
+- All edges between segment members (if they exist)
+- All edges to/from hosts not in segments
+- Full edge information on segment connections
 
 ## Example Scenarios
 

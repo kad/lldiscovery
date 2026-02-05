@@ -47,9 +47,39 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 	sb.WriteString("  // RDMA-to-RDMA connections shown in BLUE with thick lines\n")
 	sb.WriteString("  // Dashed lines indicate indirect connections\n")
 	if len(segments) > 0 {
-		sb.WriteString("  // Network segments shown as yellow ellipses (* indicates complete island)\n")
+		sb.WriteString("  // Network segments: yellow ellipses representing mutually connected node groups\n")
+		sb.WriteString("  // Individual links within segments are hidden\n")
 	}
 	sb.WriteString("\n")
+
+	// Build map of edges that are part of segments (to hide them)
+	// We only hide edges from local node to segment members on the segment interface
+	segmentEdgeMap := make(map[string]bool)
+	localNodeID := ""
+	if len(segments) > 0 {
+		// Find local node ID
+		for nodeID, node := range nodes {
+			if node.IsLocal {
+				localNodeID = nodeID
+				break
+			}
+		}
+		
+		if localNodeID != "" {
+			for _, segment := range segments {
+				// Mark edges from local node to segment members
+				// These are replaced by segment visualization
+				for _, nodeID := range segment.ConnectedNodes {
+					if nodeID != localNodeID {
+						key1 := localNodeID + ":" + nodeID
+						key2 := nodeID + ":" + localNodeID
+						segmentEdgeMap[key1] = true
+						segmentEdgeMap[key2] = true
+					}
+				}
+			}
+		}
+	}
 
 	// First pass: collect which interfaces have connections
 	connectedInterfaces := make(map[string]map[string]bool) // [machineID][interface] -> true
@@ -123,11 +153,80 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 		}
 	}
 
-	// Add all edges (including multiples between same pair of nodes)
+	// Add network segment nodes if provided
+	if len(segments) > 0 {
+		sb.WriteString("\n  // Network Segments\n")
+		for i, segment := range segments {
+			segmentNodeID := fmt.Sprintf("segment_%d", i)
+			
+			// Build segment label with interface and node count
+			segmentLabel := fmt.Sprintf("segment: %s\\n%d nodes", segment.Interface, len(segment.ConnectedNodes))
+			
+			// Check if all edges have RDMA
+			allHaveRDMA := true
+			for _, edge := range segment.EdgeInfo {
+				if edge.LocalRDMADevice == "" && edge.RemoteRDMADevice == "" {
+					allHaveRDMA = false
+					break
+				}
+			}
+			if allHaveRDMA && len(segment.EdgeInfo) > 0 {
+				segmentLabel += "\\n[RDMA]"
+			}
+			
+			// Create segment node (ellipse, yellow)
+			sb.WriteString(fmt.Sprintf("  \"%s\" [label=\"%s\", shape=ellipse, style=filled, fillcolor=\"#ffffcc\"];\n",
+				segmentNodeID, segmentLabel))
+			
+			// Connect segment to each member node with edge details
+			for _, nodeID := range segment.ConnectedNodes {
+				// Get edge info for this node if available
+				edge, hasEdge := segment.EdgeInfo[nodeID]
+				
+				if hasEdge {
+					// Build edge label with interface and address info
+					edgeLabel := fmt.Sprintf("%s\\n%s", edge.RemoteInterface, edge.RemoteAddress)
+					
+					// Add speed if available
+					if edge.RemoteSpeed > 0 {
+						edgeLabel += fmt.Sprintf("\\n%d Mbps", edge.RemoteSpeed)
+					}
+					
+					// Add RDMA info if present
+					if edge.RemoteRDMADevice != "" {
+						edgeLabel += fmt.Sprintf("\\n[%s]", edge.RemoteRDMADevice)
+					}
+					
+					// Determine if this edge should be highlighted
+					styleAttr := "style=dotted, color=gray"
+					if edge.RemoteRDMADevice != "" && edge.LocalRDMADevice != "" {
+						styleAttr = "style=dotted, color=blue, penwidth=2.0"
+					}
+					
+					sb.WriteString(fmt.Sprintf("  \"%s\" -- \"%s\" [label=\"%s\", %s];\n",
+						segmentNodeID, nodeID, edgeLabel, styleAttr))
+				} else {
+					// No edge info (shouldn't happen, but handle gracefully)
+					sb.WriteString(fmt.Sprintf("  \"%s\" -- \"%s\" [style=dotted, color=gray];\n",
+						segmentNodeID, nodeID))
+				}
+			}
+		}
+	}
+
+	// Add edges (excluding those in segments)
 	sb.WriteString("\n")
 	edgesAdded := make(map[string]bool) // Track to avoid showing both directions of same edge
 	for srcMachineID, dests := range edges {
 		for dstMachineID, edgeList := range dests {
+			// Check if this edge is part of a segment (if segments are enabled)
+			if len(segments) > 0 {
+				edgeKey := srcMachineID + ":" + dstMachineID
+				if segmentEdgeMap[edgeKey] {
+					continue // Skip edges within segments
+				}
+			}
+
 			for _, edge := range edgeList {
 				// Create a canonical edge key for deduplication (sorted + interface pair)
 				edgeKey := fmt.Sprintf("%s:%s--%s:%s", srcMachineID, edge.LocalInterface, dstMachineID, edge.RemoteInterface)
@@ -202,7 +301,6 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 				}
 
 				// Calculate line thickness based on speed
-				// Use the maximum speed between both sides
 				maxSpeed := edge.LocalSpeed
 				if edge.RemoteSpeed > maxSpeed {
 					maxSpeed = edge.RemoteSpeed
@@ -234,111 +332,22 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 		}
 	}
 
-	// Add network segment nodes if provided
-	if len(segments) > 0 {
-		sb.WriteString("\n  // Network Segments\n")
-
-		// Track which edges have been replaced by segments
-		segmentEdges := make(map[string]bool)
-
-		for _, segment := range segments {
-			// Create segment node ID
-			segmentNodeID := fmt.Sprintf("segment_%s", segment.ID)
-
-			// Create segment label
-			ownerNode := nodes[segment.OwnerNodeID]
-			ownerHostname := segment.OwnerNodeID[:8]
-			if ownerNode != nil {
-				ownerHostname = ownerNode.Hostname
-			}
-
-			segmentLabel := fmt.Sprintf("Segment\\n%s:%s\\n(%d nodes)",
-				ownerHostname, segment.Interface, len(segment.ConnectedNodes))
-
-			// Add * for complete islands
-			if segment.IsComplete {
-				segmentLabel += " *"
-			}
-
-			// Create segment node (ellipse, yellow)
-			sb.WriteString(fmt.Sprintf("  \"%s\" [label=\"%s\", shape=ellipse, style=filled, fillcolor=lightyellow];\n",
-				segmentNodeID, segmentLabel))
-
-			// Connect segment owner to segment node
-			if ownerNode != nil {
-				ownerInterfaceLabel := segment.Interface
-				// Add RDMA info if available
-				if details, ok := ownerNode.Interfaces[segment.Interface]; ok && details.RDMADevice != "" {
-					ownerInterfaceLabel += fmt.Sprintf("\\n[%s]", details.RDMADevice)
-				}
-				sb.WriteString(fmt.Sprintf("  \"%s\" -- \"%s\" [label=\"%s\"];\n",
-					segment.OwnerNodeID, segmentNodeID, ownerInterfaceLabel))
-			}
-
-			// Connect all segment members to segment node
-			for _, memberID := range segment.ConnectedNodes {
-				memberNode := nodes[memberID]
-				if memberNode == nil {
-					continue
-				}
-
-				// Find the interface this member uses to connect to segment owner
-				var memberInterface string
-				var memberRDMA string
-				if memberEdges, exists := edges[memberID]; exists {
-					if edgeList, exists := memberEdges[segment.OwnerNodeID]; exists {
-						for _, edge := range edgeList {
-							// Find edge from member to segment owner
-							memberInterface = edge.LocalInterface
-							memberRDMA = edge.LocalRDMADevice
-							break
-						}
-					}
-				}
-
-				// Build member edge label
-				memberLabel := memberInterface
-				if memberRDMA != "" {
-					memberLabel += fmt.Sprintf("\\n[%s]", memberRDMA)
-				}
-
-				sb.WriteString(fmt.Sprintf("  \"%s\" -- \"%s\" [label=\"%s\"];\n",
-					memberID, segmentNodeID, memberLabel))
-
-				// Mark these edges as handled by segment
-				edgeKey1 := fmt.Sprintf("%s-%s", segment.OwnerNodeID, memberID)
-				edgeKey2 := fmt.Sprintf("%s-%s", memberID, segment.OwnerNodeID)
-				segmentEdges[edgeKey1] = true
-				segmentEdges[edgeKey2] = true
-			}
-
-			sb.WriteString("\n")
-		}
-
-		// Note: Original edges between segment members are still shown
-		// This allows seeing both the segment view and point-to-point connections
-	}
-
 	sb.WriteString("}\n")
-
 	return sb.String()
 }
 
-func WriteDOTFile(path string, content string) error {
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("create directory: %w", err)
-	}
+// WriteDOTFile writes DOT content to a file
+func WriteDOTFile(filename, content string) error {
+// Create directory if it doesn't exist
+dir := filepath.Dir(filename)
+if err := os.MkdirAll(dir, 0755); err != nil {
+return fmt.Errorf("failed to create directory: %w", err)
+}
 
-	tmpPath := path + ".tmp"
-	if err := os.WriteFile(tmpPath, []byte(content), 0644); err != nil {
-		return fmt.Errorf("write temp file: %w", err)
-	}
+// Write file
+if err := os.WriteFile(filename, []byte(content), 0644); err != nil {
+return fmt.Errorf("failed to write file: %w", err)
+}
 
-	if err := os.Rename(tmpPath, path); err != nil {
-		os.Remove(tmpPath)
-		return fmt.Errorf("rename file: %w", err)
-	}
-
-	return nil
+return nil
 }

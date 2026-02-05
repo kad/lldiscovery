@@ -5,11 +5,15 @@
 ### Added
 
 - **Network Segment Detection**: Identify and visualize shared network segments (switches/VLANs)
-  - Detects when 3+ hosts are connected on the same interface
-  - Visualizes segments as ellipse nodes in DOT graphs (light yellow fill)
-  - Marks complete islands (full mesh connectivity) with `*`
+  - Detects when a host can reach 3+ neighbors on the same interface
+  - Segments show interface name, node count, and RDMA capability
+  - Preserves edge information: interface names, IP addresses, speeds, RDMA devices
+  - Hides only local-to-segment edges (replaced by segment visualization)
+  - Keeps all other edges: between segment members, between non-segment hosts
+  - Visualizes segments as yellow ellipse nodes with detailed connection labels
+  - RDMA-to-RDMA connections shown with blue dotted lines
   - Opt-in feature via `-show-segments` flag or `show_segments: true` in config
-  - 7 unit tests for segment detection logic
+  - 5 unit tests for segment detection logic
   - Helps identify broadcast domains and shared connectivity patterns
 - **GoReleaser Support**: Automated releases with deb/rpm packages
   - Linux x86_64 packages (.deb for Debian/Ubuntu, .rpm for RHEL/CentOS/Fedora)
@@ -18,11 +22,11 @@
   - Binary archives with documentation and configuration files
 - **Unit Tests**: Comprehensive test suite for core packages
   - Configuration: 20 test cases with 89.4% coverage
-  - Graph operations: 24 test cases with 94.0% coverage (node/edge management, expiration, concurrency, segments)
+  - Graph operations: 23 test cases with 92.8% coverage (node/edge management, expiration, concurrency, segments)
   - Discovery packets: 6 test cases for JSON serialization and neighbor information
   - Discovery helpers: 10 test cases for interface detection, IPv6 parsing, RDMA device mapping
-  - Total: 60 unit tests + 5 integration tests = 65 tests, all passing
-  - Excellent coverage of critical components: graph (94.0%), config (89.4%), discovery (35.8%)
+  - Total: 59 unit tests + 5 integration tests = 64 tests, all passing
+  - Excellent coverage of critical components: graph (92.8%), config (89.4%), discovery (38.0%)
   - Thread-safety validated with concurrent access tests
   - See UNIT_TESTS.md for details
 - **CLI Diagnostic Command**: `-list-rdma` flag to display RDMA device information

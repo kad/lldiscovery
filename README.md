@@ -464,31 +464,45 @@ Or in configuration:
 
 ### How It Works
 
-- **Detection**: When 3+ hosts are reachable on the same interface, they're identified as a network segment
-- **Visualization**: Segments appear as ellipse nodes in DOT graphs (vs. box nodes for hosts)
-- **Island Verification**: Segments marked with `*` indicate complete islands where all hosts can see each other
+- **Detection**: When a host can reach 3+ other hosts on the same local interface, they're identified as sharing a network segment (switch/VLAN)
+- **Visualization**: Segments appear as yellow ellipse nodes with interface name and node count
+- **Edge Information**: Connections from segment to member nodes show:
+  - Remote interface name and IP address
+  - Link speed (if available)
+  - RDMA device information (if available)
+  - Blue dotted lines for RDMA-to-RDMA connections
+- **Edge Hiding**: Only edges from local node to segment members are hidden (replaced by segment visualization)
+- **Preserved Edges**: 
+  - Edges between segment members (if they exist) are still shown
+  - All edges between hosts not in the same segment are shown normally
 - **Default**: Disabled (opt-in feature)
 
 ### Example
 
-For a topology where host-a, host-b, host-c, and host-d are all connected to the same switch via eth0:
+For a topology where host-a reaches host-b, host-c, and host-d all via eth0:
 
 Without `-show-segments`:
 ```
-host-a -- host-b
-host-a -- host-c
-host-a -- host-d
+host-a ---- host-b
+host-a ---- host-c
+host-a ---- host-d
 ```
 
 With `-show-segments`:
 ```
-        segment_eth0
-       /      |      \
-   host-a  host-b  host-c  host-d
+     [segment: eth0]
+     [4 nodes]
+    /    |    \
+   /     |     \
+  b      c      d
+ (info) (info) (info)
 ```
 
-The segment node is styled with:
-- Shape: ellipse (hosts are boxes)
-- Color: light yellow fill
-- Label: `segment: <interface>` (marked with `*` if complete island)
+Each connection shows:
+- Interface name (e.g., "eth0")
+- IP address (e.g., "fe80::2")  
+- Speed (e.g., "10000 Mbps")
+- RDMA device (e.g., "[mlx5_0]")
+
+If host-b and host-c are also directly connected (on a different interface), that edge is still shown.
 
