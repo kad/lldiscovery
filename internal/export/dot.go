@@ -44,9 +44,7 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 	sb.WriteString("graph lldiscovery {\n")
 	sb.WriteString("  // Layout hints for better visualization\n")
 	if len(segments) > 0 {
-		sb.WriteString("  layout=neato;\n")  // Use neato for circular layout
-		sb.WriteString("  overlap=false;\n")
-		sb.WriteString("  splines=true;\n")
+		sb.WriteString("  layout=fdp;\n")
 	} else {
 		sb.WriteString("  rankdir=LR;\n")  // Left-to-right for non-segment graphs
 	}
