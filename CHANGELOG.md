@@ -13,11 +13,16 @@
   - Configuration: 20 test cases with 89.4% coverage
   - Graph operations: 18 test cases with 94.0% coverage (node/edge management, expiration, concurrency)
   - Discovery packets: 6 test cases for JSON serialization and neighbor information
-  - Discovery helpers: 11 test cases for interface detection, IPv6 parsing, RDMA device mapping
-  - Total: 55 unit tests + 5 integration tests = 60 tests, all passing
-  - Excellent coverage of critical components: graph (94.0%), config (89.4%), discovery (36.0%)
+  - Discovery helpers: 10 test cases for interface detection, IPv6 parsing, RDMA device mapping
+  - Total: 54 unit tests + 5 integration tests = 59 tests, all passing
+  - Excellent coverage of critical components: graph (94.0%), config (89.4%), discovery (35.8%)
   - Thread-safety validated with concurrent access tests
   - See UNIT_TESTS.md for details
+- **CLI Diagnostic Command**: `-list-rdma` flag to display RDMA device information
+  - Shows node GUIDs, sys image GUIDs, node types
+  - Lists parent network interfaces with IPv6 addresses
+  - Useful for debugging RDMA/InfiniBand configurations
+  - Supports both hardware RDMA and software RXE devices
 
 ### Changed
 

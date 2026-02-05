@@ -131,6 +131,9 @@ sudo systemctl start lldiscovery
 # Show version
 ./lldiscovery -version
 
+# List RDMA devices (diagnostic command)
+./lldiscovery -list-rdma
+
 # Show all available flags
 ./lldiscovery --help
 ```
@@ -264,6 +267,44 @@ dot -Tsvg /var/lib/lldiscovery/topology.dot -o topology.svg
 
 # Watch for changes and auto-regenerate
 watch -n 5 'dot -Tpng /var/lib/lldiscovery/topology.dot -o topology.png'
+```
+
+### RDMA Diagnostics
+
+List detected RDMA devices with their configuration:
+
+```bash
+$ ./lldiscovery -list-rdma
+Found 1 RDMA device(s):
+
+📡 rxe0
+   Node GUID:      7686:e2ff:fe32:6988
+   Sys Image GUID: 7686:e2ff:fe32:6988
+   Node Type:      1 (CA)
+   Parent interfaces:
+      - enp0s31f6
+        IPv6 link-local: fe80::f2e5:c0ad:dee1:44e2%enp0s31f6
+
+Total: 1 RDMA device(s) on 1 network interface(s)
+```
+
+This command shows:
+- **Node GUID**: Unique identifier for the RDMA device
+- **Sys Image GUID**: System image GUID (same for all ports on multi-port adapters)
+- **Node Type**: 1=CA (Channel Adapter), 2=Switch, 3=Router
+- **Parent interfaces**: Network interfaces associated with the RDMA device
+- **IPv6 link-local**: Addresses used for discovery
+
+**Setting up software RDMA (RXE):**
+```bash
+# Install RDMA tools
+sudo apt-get install rdma-core
+
+# Create RXE device on an Ethernet interface
+sudo rdma link add rxe0 type rxe netdev eth0
+
+# Verify
+./lldiscovery -list-rdma
 ```
 
 ## How It Works

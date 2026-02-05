@@ -28,6 +28,7 @@ var (
 	configPath  = flag.String("config", "", "path to configuration file")
 	logLevel    = flag.String("log-level", "", "log level (debug, info, warn, error)")
 	showVersion = flag.Bool("version", false, "show version and exit")
+	listRDMA    = flag.Bool("list-rdma", false, "list RDMA devices and their parent interfaces, then exit")
 	
 	// Timing parameters
 	sendInterval   = flag.Duration("send-interval", 0, "how often to send discovery packets (e.g., 30s)")
@@ -61,6 +62,11 @@ func main() {
 		fmt.Printf("lldiscovery %s\n", version)
 		fmt.Printf("  commit: %s\n", commit)
 		fmt.Printf("  built:  %s\n", date)
+		os.Exit(0)
+	}
+
+	if *listRDMA {
+		listRDMADevices()
 		os.Exit(0)
 	}
 
@@ -353,4 +359,99 @@ func setupLogger(level string) *slog.Logger {
 	})
 
 	return slog.New(handler)
+}
+
+func listRDMADevices() {
+	devices, err := discovery.GetRDMADevices()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	if len(devices) == 0 {
+		fmt.Println("No RDMA devices found")
+		fmt.Println("\nNote: RDMA devices can be:")
+		fmt.Println("  - Hardware: InfiniBand, RoCE adapters")
+		fmt.Println("  - Software: RXE (RDMA over Converged Ethernet)")
+		fmt.Println("\nTo create a software RXE device:")
+		fmt.Println("  sudo rdma link add rxe0 type rxe netdev eth0")
+		return
+	}
+
+	fmt.Printf("Found %d RDMA device(s):\n\n", len(devices))
+	
+	for rdmaDevice, parentIfaces := range devices {
+		fmt.Printf("📡 %s\n", rdmaDevice)
+		
+		// Read additional info from sysfs
+		nodeGUID := readSysfs(fmt.Sprintf("/sys/class/infiniband/%s/node_guid", rdmaDevice))
+		sysImageGUID := readSysfs(fmt.Sprintf("/sys/class/infiniband/%s/sys_image_guid", rdmaDevice))
+		nodeType := readSysfs(fmt.Sprintf("/sys/class/infiniband/%s/node_type", rdmaDevice))
+		
+		if nodeGUID != "" {
+			fmt.Printf("   Node GUID:      %s\n", nodeGUID)
+		}
+		if sysImageGUID != "" {
+			fmt.Printf("   Sys Image GUID: %s\n", sysImageGUID)
+		}
+		if nodeType != "" {
+			// node_type file format is like "1: CA" or just "1"
+			parts := strings.Split(nodeType, ":")
+			typeNum := strings.TrimSpace(parts[0])
+			
+			typeDesc := ""
+			if len(parts) > 1 {
+				// Already has description
+				typeDesc = " (" + strings.TrimSpace(parts[1]) + ")"
+			} else {
+				// Add description based on number
+				switch typeNum {
+				case "1":
+					typeDesc = " (CA - Channel Adapter)"
+				case "2":
+					typeDesc = " (Switch)"
+				case "3":
+					typeDesc = " (Router)"
+				}
+			}
+			fmt.Printf("   Node Type:      %s%s\n", typeNum, typeDesc)
+		}
+		
+		fmt.Printf("   Parent interfaces:\n")
+		for _, iface := range parentIfaces {
+			fmt.Printf("      - %s\n", iface)
+			
+			// Try to get the interface's IP addresses
+			if ifaceObj, err := discovery.GetActiveInterfaces(); err == nil {
+				for _, info := range ifaceObj {
+					if info.Name == iface {
+						fmt.Printf("        IPv6 link-local: %s\n", info.LinkLocal)
+						break
+					}
+				}
+			}
+		}
+		fmt.Println()
+	}
+	
+	fmt.Printf("Total: %d RDMA device(s) on %d network interface(s)\n", 
+		len(devices), countUniqueInterfaces(devices))
+}
+
+func readSysfs(path string) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
+}
+
+func countUniqueInterfaces(devices map[string][]string) int {
+	seen := make(map[string]bool)
+	for _, ifaces := range devices {
+		for _, iface := range ifaces {
+			seen[iface] = true
+		}
+	}
+	return len(seen)
 }

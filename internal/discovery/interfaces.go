@@ -84,10 +84,6 @@ func formatIPv6WithZone(ip net.IP, zone string) string {
 	return fmt.Sprintf("%s%%%s", ip.String(), zone)
 }
 
-func GetMulticastAddr(port int) string {
-	return fmt.Sprintf("[ff02::1]:%d", port)
-}
-
 func ParseSourceAddr(addr string) string {
 	if idx := strings.Index(addr, "%"); idx != -1 {
 		addr = addr[:idx]

@@ -17,12 +17,12 @@ Added comprehensive unit tests for core packages in lldiscovery to ensure code q
    - 18 graph operation tests
    - **Total: 18 test cases**
    
-3. **internal/discovery** (36.0% coverage)
+3. **internal/discovery** (35.8% coverage)
    - 6 packet serialization tests
-   - 11 interface/RDMA helper tests
-   - **Total: 17 test cases**
+   - 10 interface/RDMA helper tests
+   - **Total: 16 test cases**
 
-**Overall: 55 test cases, all passing ✅**
+**Overall: 54 test cases, all passing ✅**
 
 ## Test Files
 
@@ -97,17 +97,16 @@ Added comprehensive unit tests for core packages in lldiscovery to ensure code q
 
 **Interface Detection:**
 7. ✅ `TestFormatIPv6WithZone` - IPv6 zone formatting (3 cases)
-8. ✅ `TestGetMulticastAddr` - Multicast address generation (3 cases)
-9. ✅ `TestParseSourceAddr` - Source address parsing (7 cases)
-10. ✅ `TestGetActiveInterfaces` - Active interface detection
-11. ✅ `TestInterfaceInfo_Structure` - InterfaceInfo struct validation
+8. ✅ `TestParseSourceAddr` - Source address parsing (7 cases)
+9. ✅ `TestGetActiveInterfaces` - Active interface detection
+10. ✅ `TestInterfaceInfo_Structure` - InterfaceInfo struct validation
 
 **RDMA Helpers:**
-12. ✅ `TestGetRDMADeviceForInterface_NotExists` - Handle missing RDMA devices
-13. ✅ `TestGetRDMANodeGUID_NotExists` - Handle missing node GUIDs
-14. ✅ `TestGetRDMASysImageGUID_NotExists` - Handle missing sys image GUIDs
-15. ✅ `TestGetRDMADeviceMapping` - RDMA device to interface mapping
-16. ✅ `TestGetRDMADevices` - List all RDMA devices and parents
+11. ✅ `TestGetRDMADeviceForInterface_NotExists` - Handle missing RDMA devices
+12. ✅ `TestGetRDMANodeGUID_NotExists` - Handle missing node GUIDs
+13. ✅ `TestGetRDMASysImageGUID_NotExists` - Handle missing sys image GUIDs
+14. ✅ `TestGetRDMADeviceMapping` - RDMA device to interface mapping
+15. ✅ `TestGetRDMADevices` - List all RDMA devices and parents
 
 ## Test Results
 
@@ -117,11 +116,17 @@ ok      kad.name/lldiscovery/internal/config       0.002s  coverage: 89.4%
 ok      kad.name/lldiscovery/internal/discovery    0.014s  coverage: 36.0%
 ok      kad.name/lldiscovery/internal/graph        0.006s  coverage: 94.0%
 
+```bash
+$ go test ./... -cover
+ok      kad.name/lldiscovery/internal/config       coverage: 89.4%
+ok      kad.name/lldiscovery/internal/discovery    coverage: 35.8%
+ok      kad.name/lldiscovery/internal/graph        coverage: 94.0% ⭐
+
 $ ./test.sh
 ==> All tests passed! ✓
 ```
 
-**Total: 55 unit tests + 5 integration tests = 60 tests, all passing**
+**Total: 54 unit tests + 5 integration tests = 59 tests, all passing**
 
 ## Why These Tests Matter
 
@@ -141,7 +146,7 @@ $ ./test.sh
 - **Cascading Operations**: Proper cleanup when nodes expire
 - **Multi-Edge Support**: Multiple connections between same nodes
 
-### 3. Discovery Tests (36.0% coverage)
+### 3. Discovery Tests (35.8% coverage)
 - **Wire Protocol Stability**: Discovery packets sent over network must be backward compatible
 - **Data Integrity**: Ensure no data loss during JSON serialization
 - **RDMA Support**: Verify complex RDMA information preserved correctly
@@ -234,10 +239,10 @@ go test ./internal/discovery -v -cover
 
 ## Test Quality Metrics
 
-- **55 unit test cases** covering critical paths
+- **54 unit test cases** covering critical paths
 - **94.0% coverage** for graph package (core data structure) ⭐
 - **89.4% coverage** for config package (highest risk area) ⭐
-- **36.0% coverage** for discovery package (interfaces, packets)
+- **35.8% coverage** for discovery package (interfaces, packets)
 - **Zero test failures** - all tests passing
 - **Fast execution** - <25ms total for all unit tests
 - **Deterministic** - no flaky tests, no timing dependencies
@@ -259,9 +264,9 @@ go test ./internal/discovery -v -cover
 
 **Now (Version 3):**
 - Config: 89.4% coverage (maintained) ⭐
-- Discovery: 36.0% coverage (+36.0% improvement) 📈
+- Discovery: 35.8% coverage (+35.8% improvement) 📈
 - Graph: 94.0% coverage (+94.0% improvement) 📈📈
-- Total: 55 tests (+112% more tests) 📈📈
+- Total: 54 tests (+111% more tests) 📈📈
 
 **Key additions in Version 3:**
 - Complete graph package coverage (18 tests)
@@ -269,7 +274,7 @@ go test ./internal/discovery -v -cover
   - Direct and indirect edge tracking
   - Expiration and cascading deletion
   - Concurrent access safety
-- Discovery interface helpers (11 tests)
+- Discovery interface helpers (10 tests)
   - IPv6 address formatting and parsing
   - RDMA device detection
   - Active interface enumeration
@@ -315,7 +320,7 @@ The improved test suite provides:
 - ✅ **Documentation** of expected behavior through tests
 - ✅ **Fast feedback** loop for developers (<25ms test execution)
 - ✅ **Thread-safety verification** for concurrent operations
-- ✅ **Comprehensive coverage** via unit + integration tests (60 total tests)
+- ✅ **Comprehensive coverage** via unit + integration tests (59 total tests)
 
 Combined with integration tests, lldiscovery has **excellent test coverage** for a network discovery daemon. The focus on high-risk areas (graph operations 94%, configuration 89%, packet serialization 100%) ensures stability of the most critical components.
 

@@ -42,26 +42,6 @@ func TestFormatIPv6WithZone(t *testing.T) {
 	}
 }
 
-func TestGetMulticastAddr(t *testing.T) {
-	tests := []struct {
-		port     int
-		expected string
-	}{
-		{9999, "[ff02::1]:9999"},
-		{1234, "[ff02::1]:1234"},
-		{8080, "[ff02::1]:8080"},
-	}
-
-	for _, tt := range tests {
-		t.Run("", func(t *testing.T) {
-			result := GetMulticastAddr(tt.port)
-			if result != tt.expected {
-				t.Errorf("GetMulticastAddr(%d) = %v, want %v", tt.port, result, tt.expected)
-			}
-		})
-	}
-}
-
 func TestParseSourceAddr(t *testing.T) {
 	tests := []struct {
 		name     string
