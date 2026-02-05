@@ -137,7 +137,7 @@ func TestGetRDMADevices(t *testing.T) {
 		t.Error("GetRDMADevices() returned nil map")
 	}
 	// Result may be empty if no RDMA devices present, which is OK
-	
+
 	// If RDMA devices exist, verify structure
 	for rdmaDevice, parentIfaces := range devices {
 		if rdmaDevice == "" {

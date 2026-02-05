@@ -8,13 +8,13 @@ import (
 )
 
 type Metrics struct {
-	PacketsSent          metric.Int64Counter
-	PacketsReceived      metric.Int64Counter
-	NodesDiscovered      metric.Int64UpDownCounter
-	InterfacesActive     metric.Int64UpDownCounter
-	GraphExports         metric.Int64Counter
-	NodesExpired         metric.Int64Counter
-	DiscoveryErrors      metric.Int64Counter
+	PacketsSent           metric.Int64Counter
+	PacketsReceived       metric.Int64Counter
+	NodesDiscovered       metric.Int64UpDownCounter
+	InterfacesActive      metric.Int64UpDownCounter
+	GraphExports          metric.Int64Counter
+	NodesExpired          metric.Int64Counter
+	DiscoveryErrors       metric.Int64Counter
 	MulticastJoinFailures metric.Int64Counter
 }
 

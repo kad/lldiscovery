@@ -11,12 +11,12 @@ import (
 )
 
 type InterfaceInfo struct {
-	Name          string
-	LinkLocal     string
-	IsRDMA        bool
-	RDMADevice    string
-	NodeGUID      string
-	SysImageGUID  string
+	Name         string
+	LinkLocal    string
+	IsRDMA       bool
+	RDMADevice   string
+	NodeGUID     string
+	SysImageGUID string
 }
 
 func GetActiveInterfaces() ([]InterfaceInfo, error) {
@@ -149,7 +149,7 @@ func getRDMADeviceForInterface(ifaceName string) string {
 		if err != nil || !info.IsDir() {
 			continue
 		}
-		
+
 		// Check parent file for RXE devices
 		parentFile := filepath.Join(ibPath, entry.Name(), "parent")
 		parentData, err := os.ReadFile(parentFile)
@@ -203,13 +203,13 @@ func GetRDMADevices() (map[string][]string, error) {
 		}
 
 		rdmaDevice := entry.Name()
-		
+
 		// Try hardware RDMA: /sys/class/infiniband/<device>/device/net/
 		netPath := filepath.Join(ibPath, rdmaDevice, "device", "net")
 		netEntries, err := os.ReadDir(netPath)
-		
+
 		var parentIfaces []string
-		
+
 		if err == nil && len(netEntries) > 0 {
 			// Hardware RDMA device
 			for _, netEntry := range netEntries {

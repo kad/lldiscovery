@@ -64,12 +64,12 @@ func (r *Receiver) Run(ctx context.Context) error {
 	}
 
 	p := ipv6.NewPacketConn(conn)
-	
+
 	// Enable control messages to get receiving interface info
 	if err := p.SetControlMessage(ipv6.FlagInterface, true); err != nil {
 		r.logger.Warn("failed to enable interface control messages", "error", err)
 	}
-	
+
 	for _, iface := range interfaces {
 		ifaceObj, err := net.InterfaceByName(iface.Name)
 		if err != nil {

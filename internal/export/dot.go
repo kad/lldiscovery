@@ -48,7 +48,7 @@ func GenerateDOT(nodes map[string]*graph.Node, edges map[string]map[string][]*gr
 			if !connectedInterfaces[machineID][iface] {
 				continue
 			}
-			
+
 			ifaceStr := iface
 			// Add RDMA device name if present
 			if details.RDMADevice != "" {
@@ -65,7 +65,7 @@ func GenerateDOT(nodes map[string]*graph.Node, edges map[string]map[string][]*gr
 			}
 			ifaceList = append(ifaceList, ifaceStr)
 		}
-		
+
 		var label string
 		if len(ifaceList) > 0 {
 			ifaceStr := strings.Join(ifaceList, "\\n")
@@ -99,25 +99,25 @@ func GenerateDOT(nodes map[string]*graph.Node, edges map[string]map[string][]*gr
 				// Create a canonical edge key for deduplication (sorted + interface pair)
 				edgeKey := fmt.Sprintf("%s:%s--%s:%s", srcMachineID, edge.LocalInterface, dstMachineID, edge.RemoteInterface)
 				reverseKey := fmt.Sprintf("%s:%s--%s:%s", dstMachineID, edge.RemoteInterface, srcMachineID, edge.LocalInterface)
-				
+
 				if edgesAdded[edgeKey] || edgesAdded[reverseKey] {
 					continue
 				}
 				edgesAdded[edgeKey] = true
 
 				// Build edge label with addresses
-				edgeLabel := fmt.Sprintf("%s (%s) <-> %s (%s)", 
+				edgeLabel := fmt.Sprintf("%s (%s) <-> %s (%s)",
 					edge.LocalInterface, edge.LocalAddress,
 					edge.RemoteInterface, edge.RemoteAddress)
-				
+
 				// Check RDMA status on both sides
 				hasLocalRDMA := edge.LocalRDMADevice != ""
 				hasRemoteRDMA := edge.RemoteRDMADevice != ""
 				bothRDMA := hasLocalRDMA && hasRemoteRDMA
-				
+
 				// Add RDMA info to edge label if present on either side
 				var rdmaLines []string
-				
+
 				// Build local RDMA info line
 				if hasLocalRDMA {
 					localRDMA := fmt.Sprintf("Local: %s", edge.LocalRDMADevice)
@@ -129,7 +129,7 @@ func GenerateDOT(nodes map[string]*graph.Node, edges map[string]map[string][]*gr
 					}
 					rdmaLines = append(rdmaLines, localRDMA)
 				}
-				
+
 				// Build remote RDMA info line
 				if hasRemoteRDMA {
 					remoteRDMA := fmt.Sprintf("Remote: %s", edge.RemoteRDMADevice)
@@ -141,26 +141,26 @@ func GenerateDOT(nodes map[string]*graph.Node, edges map[string]map[string][]*gr
 					}
 					rdmaLines = append(rdmaLines, remoteRDMA)
 				}
-				
+
 				// Add RDMA info to label
 				if len(rdmaLines) > 0 {
 					for _, line := range rdmaLines {
 						edgeLabel += "\\n" + line
 					}
 				}
-				
+
 				// Add RDMA-to-RDMA indicator
 				if bothRDMA {
 					edgeLabel += "\\n[RDMA-to-RDMA]"
 				}
-				
+
 				// Build edge attributes - highlight RDMA-to-RDMA connections and indirect edges
 				var edgeAttrs string
 				styleExtra := ""
 				if !edge.Direct {
 					styleExtra = ", style=\"dashed\""
 				}
-				
+
 				if bothRDMA {
 					// Both sides have RDMA - thick, colored edge
 					edgeAttrs = fmt.Sprintf(" [label=\"%s\", color=\"blue\", penwidth=2.0%s]", edgeLabel, styleExtra)
@@ -179,7 +179,7 @@ func GenerateDOT(nodes map[string]*graph.Node, edges map[string]map[string][]*gr
 						edgeAttrs = fmt.Sprintf(" [label=\"%s\"]", edgeLabel)
 					}
 				}
-				
+
 				sb.WriteString(fmt.Sprintf("  \"%s\" -- \"%s\"%s;\n",
 					srcMachineID, dstMachineID, edgeAttrs))
 			}

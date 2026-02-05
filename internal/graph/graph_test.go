@@ -151,7 +151,7 @@ func TestAddOrUpdate_UpgradeIndirectToDirect(t *testing.T) {
 
 	// Add indirect edge
 	g.AddOrUpdate("remote-456", "remotehost", "eth1", "fe80::2", "eth0", "", "", "", false, "intermediate")
-	
+
 	edges := g.edges["local-123"]["remote-456"]
 	if edges[0].Direct {
 		t.Error("edge should be indirect initially")
@@ -368,7 +368,7 @@ func TestGetDirectNeighbors(t *testing.T) {
 
 	// Add direct neighbor
 	g.AddOrUpdate("remote-direct", "direct", "eth1", "fe80::2", "eth0", "mlx5_1", "0x3333", "0x4444", true, "")
-	
+
 	// Add indirect neighbor
 	g.AddOrUpdate("remote-indirect", "indirect", "eth2", "fe80::3", "", "", "", "", false, "intermediate")
 

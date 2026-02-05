@@ -8,8 +8,8 @@ import (
 )
 
 type NeighborInfo struct {
-	MachineID         string `json:"machine_id"`
-	Hostname          string `json:"hostname"`
+	MachineID string `json:"machine_id"`
+	Hostname  string `json:"hostname"`
 	// Local side (sender's interface to this neighbor)
 	LocalInterface    string `json:"local_interface"`
 	LocalAddress      string `json:"local_address"`

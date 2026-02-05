@@ -51,11 +51,11 @@ type Edge struct {
 }
 
 type Graph struct {
-	mu         sync.RWMutex
-	nodes      map[string]*Node
-	localNode  *Node
-	edges      map[string]map[string][]*Edge // [localMachineID][remoteMachineID] -> []Edge (multiple edges)
-	changed    bool
+	mu        sync.RWMutex
+	nodes     map[string]*Node
+	localNode *Node
+	edges     map[string]map[string][]*Edge // [localMachineID][remoteMachineID] -> []Edge (multiple edges)
+	changed   bool
 }
 
 func New() *Graph {
@@ -68,7 +68,7 @@ func New() *Graph {
 func (g *Graph) SetLocalNode(machineID, hostname string, interfaces map[string]InterfaceDetails) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	
+
 	g.localNode = &Node{
 		Hostname:   hostname,
 		MachineID:  machineID,
@@ -109,19 +109,19 @@ func (g *Graph) AddOrUpdate(machineID, hostname, remoteIface, sourceIP, receivin
 		NodeGUID:     nodeGUID,
 		SysImageGUID: sysImageGUID,
 	}
-	
+
 	if existing, ok := node.Interfaces[remoteIface]; !ok || existing != details {
 		node.Interfaces[remoteIface] = details
 		g.changed = true
 	}
-	
+
 	// Track edge (connection between interfaces)
 	if g.localNode != nil {
 		// For indirect edges, receivingIface may be empty
 		if _, ok := g.edges[g.localNode.MachineID]; !ok {
 			g.edges[g.localNode.MachineID] = make(map[string][]*Edge)
 		}
-		
+
 		// Get local interface details (only for direct edges)
 		localDetails := InterfaceDetails{}
 		if receivingIface != "" {
@@ -129,7 +129,7 @@ func (g *Graph) AddOrUpdate(machineID, hostname, remoteIface, sourceIP, receivin
 				localDetails = ld
 			}
 		}
-		
+
 		edge := &Edge{
 			LocalInterface:     receivingIface,
 			LocalAddress:       localDetails.IPAddress,
@@ -144,7 +144,7 @@ func (g *Graph) AddOrUpdate(machineID, hostname, remoteIface, sourceIP, receivin
 			Direct:             direct,
 			LearnedFrom:        learnedFrom,
 		}
-		
+
 		// Check if this exact edge already exists
 		edges := g.edges[g.localNode.MachineID][machineID]
 		found := false
@@ -164,7 +164,7 @@ func (g *Graph) AddOrUpdate(machineID, hostname, remoteIface, sourceIP, receivin
 				break
 			}
 		}
-		
+
 		if !found {
 			// Add new edge
 			g.edges[g.localNode.MachineID][machineID] = append(edges, edge)
@@ -181,7 +181,7 @@ func (g *Graph) AddOrUpdateIndirectEdge(
 	intermediateIface, intermediateAddress,
 	intermediateRDMA, intermediateNodeGUID, intermediateSysImageGUID,
 	learnedFrom string) {
-	
+
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
@@ -271,7 +271,6 @@ func (g *Graph) AddOrUpdateIndirectEdge(
 	}
 }
 
-
 func (g *Graph) RemoveExpired(timeout time.Duration) int {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -301,7 +300,7 @@ func (g *Graph) RemoveExpired(timeout time.Duration) int {
 						break
 					}
 				}
-				
+
 				if shouldDeleteAll {
 					delete(dstMap, dstID)
 					if len(dstMap) == 0 {
@@ -310,7 +309,7 @@ func (g *Graph) RemoveExpired(timeout time.Duration) int {
 					g.changed = true
 					continue
 				}
-				
+
 				// Filter out indirect edges learned from expired nodes
 				filteredEdges := make([]*Edge, 0, len(edges))
 				for _, edge := range edges {
@@ -327,7 +326,7 @@ func (g *Graph) RemoveExpired(timeout time.Duration) int {
 						g.changed = true
 					}
 				}
-				
+
 				if len(filteredEdges) == 0 {
 					delete(dstMap, dstID)
 					if len(dstMap) == 0 {
@@ -348,7 +347,7 @@ func (g *Graph) GetNodes() map[string]*Node {
 	defer g.mu.RUnlock()
 
 	result := make(map[string]*Node)
-	
+
 	// Include local node if set
 	if g.localNode != nil {
 		nodeCopy := &Node{
@@ -363,7 +362,7 @@ func (g *Graph) GetNodes() map[string]*Node {
 		}
 		result[g.localNode.MachineID] = nodeCopy
 	}
-	
+
 	// Include discovered nodes
 	for k, v := range g.nodes {
 		nodeCopy := &Node{
@@ -419,7 +418,7 @@ func (g *Graph) GetDirectNeighbors() []NeighborData {
 	defer g.mu.RUnlock()
 
 	result := []NeighborData{}
-	
+
 	if g.localNode == nil {
 		return result
 	}
@@ -434,7 +433,7 @@ func (g *Graph) GetDirectNeighbors() []NeighborData {
 					if !exists {
 						continue
 					}
-					
+
 					result = append(result, NeighborData{
 						MachineID:          dstID,
 						Hostname:           node.Hostname,

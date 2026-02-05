@@ -59,7 +59,7 @@ func Default() *Config {
 func getDefaultOutputFile() string {
 	defaultPath := "/var/lib/lldiscovery/topology.dot"
 	dir := filepath.Dir(defaultPath)
-	
+
 	// Check if directory exists and is writable
 	if err := os.MkdirAll(dir, 0755); err == nil {
 		// Try to create a test file to verify write permission
@@ -70,7 +70,7 @@ func getDefaultOutputFile() string {
 			return defaultPath
 		}
 	}
-	
+
 	// Fallback to current directory if default path not writable
 	return "./topology.dot"
 }
@@ -140,14 +140,14 @@ func Load(path string) (*Config, error) {
 	if rawConfig.LogLevel != "" {
 		cfg.LogLevel = rawConfig.LogLevel
 	}
-	
+
 	cfg.IncludeNeighbors = rawConfig.IncludeNeighbors
-	
+
 	// Merge telemetry config
 	if rawConfig.Telemetry.Endpoint != "" || rawConfig.Telemetry.Enabled {
 		cfg.Telemetry = rawConfig.Telemetry
 	}
-	
+
 	// Parse endpoint URL to extract protocol if needed
 	if err := cfg.Telemetry.ParseEndpoint(); err != nil {
 		return nil, fmt.Errorf("invalid telemetry endpoint: %w", err)
@@ -166,20 +166,20 @@ func (t *TelemetryConfig) ParseEndpoint() error {
 	if t.Endpoint == "" {
 		return nil
 	}
-	
+
 	endpoint := t.Endpoint
-	
+
 	// If no scheme, check if it looks like a URL pattern
 	if !strings.Contains(endpoint, "://") {
 		// If it's just host:port or host, assume grpc://
 		endpoint = "grpc://" + endpoint
 	}
-	
+
 	u, err := url.Parse(endpoint)
 	if err != nil {
 		return fmt.Errorf("failed to parse endpoint URL: %w", err)
 	}
-	
+
 	// Extract protocol from scheme
 	switch u.Scheme {
 	case "grpc":
@@ -197,9 +197,9 @@ func (t *TelemetryConfig) ParseEndpoint() error {
 	default:
 		return fmt.Errorf("unsupported protocol scheme: %s (use grpc://, http://, or https://)", u.Scheme)
 	}
-	
+
 	// Update endpoint to be just host:port
 	t.Endpoint = u.Host
-	
+
 	return nil
 }

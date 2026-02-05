@@ -24,28 +24,28 @@ var (
 	version = "dev"
 	commit  = "none"
 	date    = "unknown"
-	
+
 	configPath  = flag.String("config", "", "path to configuration file")
 	logLevel    = flag.String("log-level", "", "log level (debug, info, warn, error)")
 	showVersion = flag.Bool("version", false, "show version and exit")
 	listRDMA    = flag.Bool("list-rdma", false, "list RDMA devices and their parent interfaces, then exit")
-	
+
 	// Timing parameters
 	sendInterval   = flag.Duration("send-interval", 0, "how often to send discovery packets (e.g., 30s)")
 	nodeTimeout    = flag.Duration("node-timeout", 0, "remove nodes after this period of no packets (e.g., 120s)")
 	exportInterval = flag.Duration("export-interval", 0, "how often to check for changes and export (e.g., 60s)")
-	
+
 	// Network parameters
 	multicastAddr = flag.String("multicast-address", "", "IPv6 multicast address (default: ff02::4c4c:6469)")
 	multicastPort = flag.Int("multicast-port", 0, "UDP port for discovery protocol")
-	
+
 	// Output parameters
 	outputFile  = flag.String("output-file", "", "path to DOT file output")
 	httpAddress = flag.String("http-address", "", "HTTP server bind address (e.g., :8080)")
-	
+
 	// Feature flags
 	includeNeighbors = flag.Bool("include-neighbors", false, "share neighbor information for transitive discovery")
-	
+
 	// Telemetry parameters
 	telemetryEnabled       = flag.Bool("telemetry-enabled", false, "enable OpenTelemetry")
 	telemetryEndpoint      = flag.String("telemetry-endpoint", "", "OpenTelemetry endpoint URL (e.g., grpc://localhost:4317, http://localhost:4318)")
@@ -126,7 +126,7 @@ func main() {
 	if *telemetryEndpoint != "" {
 		cfg.Telemetry.Endpoint = *telemetryEndpoint
 	}
-	
+
 	// Parse endpoint URL to extract protocol and default ports
 	if err := cfg.Telemetry.ParseEndpoint(); err != nil {
 		fmt.Fprintf(os.Stderr, "invalid telemetry endpoint: %v\n", err)
@@ -195,13 +195,13 @@ func main() {
 				SysImageGUID: iface.SysImageGUID,
 			}
 		}
-		
+
 		// Get hostname and machine ID
 		hostname, _ := os.Hostname()
 		if hostname == "" {
 			hostname = "unknown"
 		}
-		
+
 		machineID, err := os.ReadFile("/etc/machine-id")
 		if err == nil {
 			g.SetLocalNode(strings.TrimSpace(string(machineID)), hostname, ifaceMap)
@@ -222,7 +222,7 @@ func main() {
 	receiver, err := discovery.NewReceiver(cfg.MulticastAddr, cfg.MulticastPort, logger, func(p *discovery.Packet, sourceIP, receivingIface string) {
 		// Add direct edge for received packet
 		g.AddOrUpdate(p.MachineID, p.Hostname, p.Interface, sourceIP, receivingIface, p.RDMADevice, p.NodeGUID, p.SysImageGUID, true, "")
-		
+
 		// Process neighbors if included
 		if cfg.IncludeNeighbors && len(p.Neighbors) > 0 {
 			localMachineID := g.GetLocalMachineID()
@@ -231,7 +231,7 @@ func main() {
 				if neighbor.MachineID == localMachineID {
 					continue
 				}
-				
+
 				// Create indirect edge with full information from both sides
 				// The neighbor struct contains: sender's interface to neighbor (Local*) and neighbor's interface (Remote*)
 				// We create an edge from us to the neighbor, using the sender's local interface as the "remote" interface
@@ -239,17 +239,17 @@ func main() {
 				g.AddOrUpdateIndirectEdge(
 					neighbor.MachineID,
 					neighbor.Hostname,
-					neighbor.RemoteInterface,    // Neighbor's interface
-					neighbor.RemoteAddress,      // Neighbor's address
-					neighbor.RemoteRDMADevice,   // Neighbor's RDMA
+					neighbor.RemoteInterface,  // Neighbor's interface
+					neighbor.RemoteAddress,    // Neighbor's address
+					neighbor.RemoteRDMADevice, // Neighbor's RDMA
 					neighbor.RemoteNodeGUID,
 					neighbor.RemoteSysImageGUID,
-					neighbor.LocalInterface,     // Sender's interface (connecting to neighbor)
-					neighbor.LocalAddress,       // Sender's address
-					neighbor.LocalRDMADevice,    // Sender's RDMA
+					neighbor.LocalInterface,  // Sender's interface (connecting to neighbor)
+					neighbor.LocalAddress,    // Sender's address
+					neighbor.LocalRDMADevice, // Sender's RDMA
 					neighbor.LocalNodeGUID,
 					neighbor.LocalSysImageGUID,
-					p.MachineID,                 // Learned from sender
+					p.MachineID, // Learned from sender
 				)
 			}
 		}
@@ -379,15 +379,15 @@ func listRDMADevices() {
 	}
 
 	fmt.Printf("Found %d RDMA device(s):\n\n", len(devices))
-	
+
 	for rdmaDevice, parentIfaces := range devices {
 		fmt.Printf("📡 %s\n", rdmaDevice)
-		
+
 		// Read additional info from sysfs
 		nodeGUID := readSysfs(fmt.Sprintf("/sys/class/infiniband/%s/node_guid", rdmaDevice))
 		sysImageGUID := readSysfs(fmt.Sprintf("/sys/class/infiniband/%s/sys_image_guid", rdmaDevice))
 		nodeType := readSysfs(fmt.Sprintf("/sys/class/infiniband/%s/node_type", rdmaDevice))
-		
+
 		if nodeGUID != "" {
 			fmt.Printf("   Node GUID:      %s\n", nodeGUID)
 		}
@@ -398,7 +398,7 @@ func listRDMADevices() {
 			// node_type file format is like "1: CA" or just "1"
 			parts := strings.Split(nodeType, ":")
 			typeNum := strings.TrimSpace(parts[0])
-			
+
 			typeDesc := ""
 			if len(parts) > 1 {
 				// Already has description
@@ -416,11 +416,11 @@ func listRDMADevices() {
 			}
 			fmt.Printf("   Node Type:      %s%s\n", typeNum, typeDesc)
 		}
-		
+
 		fmt.Printf("   Parent interfaces:\n")
 		for _, iface := range parentIfaces {
 			fmt.Printf("      - %s\n", iface)
-			
+
 			// Try to get the interface's IP addresses
 			if ifaceObj, err := discovery.GetActiveInterfaces(); err == nil {
 				for _, info := range ifaceObj {
@@ -433,8 +433,8 @@ func listRDMADevices() {
 		}
 		fmt.Println()
 	}
-	
-	fmt.Printf("Total: %d RDMA device(s) on %d network interface(s)\n", 
+
+	fmt.Printf("Total: %d RDMA device(s) on %d network interface(s)\n",
 		len(devices), countUniqueInterfaces(devices))
 }
 

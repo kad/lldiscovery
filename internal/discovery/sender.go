@@ -7,12 +7,12 @@ import (
 	"net"
 	"time"
 
-	"kad.name/lldiscovery/internal/graph"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
+	"kad.name/lldiscovery/internal/graph"
 )
 
 type NeighborProvider interface {
@@ -107,14 +107,14 @@ func (s *Sender) sendOnInterface(ctx context.Context, iface InterfaceInfo) error
 		span.SetStatus(codes.Error, "failed to create packet")
 		return fmt.Errorf("create packet: %w", err)
 	}
-	
+
 	// Add RDMA device info and GUIDs if available
 	if iface.IsRDMA {
 		packet.RDMADevice = iface.RDMADevice
 		packet.NodeGUID = iface.NodeGUID
 		packet.SysImageGUID = iface.SysImageGUID
 	}
-	
+
 	// Add neighbors if enabled
 	if s.includeNeighbors && s.neighborProvider != nil {
 		neighbors := s.neighborProvider.GetDirectNeighbors()
