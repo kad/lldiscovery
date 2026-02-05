@@ -556,7 +556,9 @@ func (g *Graph) GetNetworkSegments() []NetworkSegment {
 		components = append(components, component)
 	}
 
-	// Convert components to segments, filtering for size and verifying they're cliques
+	// Convert components to segments, filtering for size
+	// Note: We trust that components from transitive discovery represent real VLANs
+	// even if we can't verify full clique property (some edges may be missing)
 	segmentID := 0
 	for _, component := range components {
 		// Extract unique node IDs
@@ -574,27 +576,6 @@ func (g *Graph) GetNetworkSegments() []NetworkSegment {
 		// Need at least 3 unique nodes for a segment
 		// With only 2 nodes, it's a peer-to-peer link, not a shared network
 		if len(nodeSet) < 3 {
-			continue
-		}
-
-		// Verify this component is a clique (all pairs mutually connected)
-		// This ensures it's a true shared network segment, not just a connected component
-		isClique := true
-		for i, ni1 := range component {
-			for j := i + 1; j < len(component); j++ {
-				ni2 := component[j]
-				if !connectivity[ni1][ni2] || !connectivity[ni2][ni1] {
-					isClique = false
-					break
-				}
-			}
-			if !isClique {
-				break
-			}
-		}
-
-		// Only keep components that are cliques (true segments)
-		if !isClique {
 			continue
 		}
 

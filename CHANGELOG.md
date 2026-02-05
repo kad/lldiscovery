@@ -15,19 +15,19 @@
   - Dramatically improves readability for 100+ host topologies
   - Easier to trace which interfaces connect where
   - Better visual grouping of multi-interface hosts
-- **Connected Components with Clique Verification**: Detects actual VLANs/network segments
-  - **Algorithm**: BFS to find connected components + verification that each is a clique
+- **Connected Components Network Segment Detection**: Detects VLANs/network segments by reachability
+  - **Algorithm**: BFS to find connected components of node:interface pairs
   - **Key insight**: B:if2 reaches A:if1 → they're on the same VLAN (direct or indirect doesn't matter)
-  - **Segment criteria**: 3+ nodes all mutually connected (complete graph / clique)
+  - **Segment criteria**: 3+ nodes all mutually reachable (connected component)
   - **Peer-to-peer filtering**: 2-node connections excluded (not shared networks)
-  - **No duplicates**: Each VLAN found once (not all overlapping maximal cliques)
+  - **Trust transitive**: Doesn't verify complete cliques (trusts incomplete information)
+  - **Why**: With transitive discovery, we may not see all edges - that's OK!
   - **Mixed interface support**: Segment can include em1, br112, eth0, p2p1 simultaneously
   - **Overlapping VLANs**: Nodes can have different interfaces on different VLANs
   - **Intelligent labels**: Single name or "if1+if2+if3" or "mixed(N)" for heterogeneous segments
   - **Examples**:
-    * 13 hosts all mutually connected on one switch → ONE segment
+    * 13 hosts all reachable → ONE segment (even with incomplete edge visibility)
     * Node A on VLAN1 (eth0) + VLAN2 (eth1) → TWO separate segments
-    * Linear topology A-B-C without full mesh → NO segment (rejected, not a clique)
     * 2 nodes C↔D → NO segment (peer-to-peer link, below 3-node threshold)
   - Handles heterogeneous networks with diverse interface naming conventions
 - **Network Segment Detection**: Identify and visualize shared network segments (switches/VLANs)

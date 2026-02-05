@@ -28,77 +28,54 @@ lldiscovery -show-segments
 
 ## How It Works
 
-### Detection Algorithm: Connected Components with Clique Verification
+### Detection Algorithm: Connected Components
 
-The algorithm finds network segments (VLANs/switches) by identifying groups of mutually-connected node:interface pairs:
+The algorithm finds network segments (VLANs/switches) by grouping mutually-reachable node:interface pairs:
 
 1. **Build Connectivity Graph**: Create a bidirectional map of all `node:interface` pairs
    - Example: `hostA:em1` ↔ `hostB:br112`, `hostA:em1` ↔ `hostC:eth0`
-   - Include both direct and indirect edges (no distinction for VLAN detection)
+   - Include both direct and indirect edges (transitive discovery)
 
 2. **Find Connected Components**: Use BFS to group reachable node:interface pairs
    - All node:interface pairs that can reach each other form a component
+   - Represents a VLAN or shared network segment
 
-3. **Verify Cliques**: Check that each component is a complete graph (clique)
-   - In a true segment, ALL pairs must be mutually connected
-   - Linear chains (A→B→C without A→C) are rejected
-
-4. **Filter by Size**: Keep only components with 3+ unique nodes
+3. **Filter by Size**: Keep only components with 3+ unique nodes
    - 2-node connections are peer-to-peer links, not shared networks
 
-5. **Label Segments**: 
+4. **Label Segments**: 
    - Single interface name: Use that name (e.g., "em1")
    - Multiple names: Combined label (e.g., "br112+em1+eth0" or "mixed(7)")
 
-6. **Collect Edge Info**: Store connection details for visualization
+5. **Collect Edge Info**: Store connection details for visualization
 
-### Key Insight: VLAN = Connected Component + All-to-All Connectivity
+### Key Insight: Reachability Defines VLANs
 
-A network segment (VLAN/switch) has two properties:
-1. **Connectivity**: All node:interface pairs can reach each other (connected component)
-2. **Completeness**: Every pair has a direct connection (clique/complete graph)
+A network segment (VLAN/switch) is defined by **reachability**:
+- If B:if2 can reach A:if1 (directly or indirectly), they're on the same VLAN
+- If 3+ node:interface pairs are all mutually reachable, they form a segment
+- If only 2 nodes connect (C:if4↔D:if3), it's a peer-to-peer link
 
-```
-If B:if2 can reach A:if1, then B:if2 and A:if1 are on the same VLAN.
-If 3+ node:interface pairs are all mutually connected, they form a segment.
-If only 2 nodes connect (C:if4↔D:if3), it's a peer-to-peer link.
-```
-
-### Why Connected Components + Clique Verification?
-
-Using **only** connected components would create false positives:
-```
-Linear: A → B → C → D
-  - Forms ONE connected component
-  - But A doesn't reach C or D directly
-  - NOT a segment (no switch connects them all)
-```
-
-Using **only** maximal cliques would create duplicates:
-```
-Dense graph with 13 nodes all mutually connected
-  - Can generate MANY overlapping maximal cliques
-  - All represent the same VLAN
-  - Need to find unique components first
-```
-
-**Solution**: Find connected components (unique VLANs), then verify each is a clique (true segment).
+**Why transitive discovery matters**:
+- Local node learns about remote connections via neighbor sharing
+- Indirect edges reveal full VLAN topology
+- Don't need direct visibility to all pairs - trust transitive information
 
 ### Properties
 
-- **No false positives**: Linear chains rejected (not cliques)
-- **No duplicates**: Each VLAN found once (not all maximal cliques)
-- **Direct = Indirect**: Both edge types contribute equally to VLAN detection
-- **Overlapping support**: Nodes can have multiple interfaces on different VLANs
+- **Transitive**: Uses both direct and indirect edges equally
+- **No false requirements**: Doesn't require seeing all edges (trusts incomplete information)
 - **Peer-to-peer filtering**: 2-node connections excluded (3+ required)
+- **Overlapping support**: Nodes can have multiple interfaces on different VLANs
+- **Component-based**: Each connected component = one VLAN
 
 ### Threshold
 
 - **Minimum nodes**: 3+ unique nodes (peer-to-peer links with only 2 nodes are excluded)
-- **Bidirectional**: All connections must be mutual (both direct and indirect edges count)
-- **Clique requirement**: ALL pairs must be mutually connected (not just reachable)
+- **Bidirectional**: All connections must be mutual (edges added in both directions)
+- **Transitive**: Both direct and indirect edges count equally
 - **Global detection**: Finds all segments across the entire topology
-- **No distinction**: Direct and indirect edges contribute equally to VLAN detection
+- **Trust incomplete**: Doesn't require seeing all edges (trusts transitive information)
 
 ### Examples of Detected Segments
 
