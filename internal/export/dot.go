@@ -70,7 +70,7 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 		for _, segment := range segments {
 			// Build a map of which interface each node uses in this segment
 			nodeInterfaces := make(map[string]string) // nodeID -> interface name
-			
+
 			// Collect interface information from EdgeInfo
 			for nodeID, edgeInfo := range segment.EdgeInfo {
 				if edgeInfo.RemoteInterface != "" {
@@ -84,7 +84,7 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 					// For now, just collect it - we'll identify the reference node below
 				}
 			}
-			
+
 			// Try to identify the reference/local node by finding LocalInterface
 			var referenceInterface string
 			for _, edgeInfo := range segment.EdgeInfo {
@@ -93,7 +93,7 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 					break
 				}
 			}
-			
+
 			// If we found a reference interface, find which node(s) don't have EdgeInfo entry
 			// or have null RemoteInterface - those likely use the reference interface
 			if referenceInterface != "" {
@@ -104,14 +104,14 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 					}
 				}
 			}
-			
+
 			// If still missing interfaces, use segment.Interface as fallback
 			for _, nodeID := range segment.ConnectedNodes {
 				if _, exists := nodeInterfaces[nodeID]; !exists {
 					nodeInterfaces[nodeID] = segment.Interface
 				}
 			}
-			
+
 			// For each pair of nodes in this segment
 			for i, nodeA := range segment.ConnectedNodes {
 				for j, nodeB := range segment.ConnectedNodes {

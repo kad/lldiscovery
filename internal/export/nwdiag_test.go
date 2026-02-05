@@ -68,7 +68,7 @@ func TestExportNwdiag(t *testing.T) {
 	if !strings.Contains(nwdiag, "address") && !strings.Contains(nwdiag, "192_168_1_0_24") {
 		t.Error("Expected network address or identifier in output")
 	}
-	
+
 	// Verify description exists (should be hostname)
 	if !strings.Contains(nwdiag, "description") {
 		t.Error("Expected description field in output")

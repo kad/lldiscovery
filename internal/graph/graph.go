@@ -776,7 +776,7 @@ func mergeSegmentsByPrefix(segments []NetworkSegment) []NetworkSegment {
 
 	// Group segments by network prefix
 	prefixGroups := make(map[string][]int) // prefix -> list of segment indices
-	
+
 	for i, seg := range segments {
 		// Only merge segments with non-empty prefixes
 		if seg.NetworkPrefix != "" {
@@ -816,7 +816,7 @@ func mergeSegmentsByPrefix(segments []NetworkSegment) []NetworkSegment {
 					// Node already has an edge, keep the better one
 					// Prefer: 1) edges with local interface, 2) edges with prefixes
 					keepNew := false
-					
+
 					if edge.LocalInterface != "" && existing.LocalInterface == "" {
 						keepNew = true // New edge has local interface
 					} else if len(edge.LocalPrefixes) > 0 && len(existing.LocalPrefixes) == 0 {
@@ -824,7 +824,7 @@ func mergeSegmentsByPrefix(segments []NetworkSegment) []NetworkSegment {
 					} else if len(edge.RemotePrefixes) > 0 && len(existing.RemotePrefixes) == 0 {
 						keepNew = true // New edge has remote prefixes
 					}
-					
+
 					if keepNew {
 						mergedEdgeInfo[nodeID] = edge
 					}

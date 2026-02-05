@@ -56,7 +56,7 @@ func ExportNwdiag(nodes map[string]*graph.Node, edges map[string]map[string][]*g
 		}
 
 		networkColor := getNetworkColor(segmentSpeed, hasRDMA)
-		
+
 		sb.WriteString(fmt.Sprintf("  network %s {\n", networkName))
 
 		// Add network address with speed if available
@@ -96,13 +96,13 @@ func ExportNwdiag(nodes map[string]*graph.Node, edges map[string]map[string][]*g
 			}
 
 			hostname := sanitizeHostname(node.Hostname)
-			
+
 			// Determine which interface and address to show
 			var ifaceName string
 			var ipAddress string
 			var speed int
 			var rdmaDevice string
-			
+
 			if edge.LocalInterface != "" {
 				// Local node - use local interface
 				ifaceName = edge.LocalInterface
@@ -159,11 +159,11 @@ func ExportNwdiag(nodes map[string]*graph.Node, edges map[string]map[string][]*g
 		}
 
 		sb.WriteString("  }\n")
-		
+
 		// Mark edges in this segment as processed
 		// Build a map of which interface each node uses in this segment
 		nodeInterfaces := make(map[string]string)
-		
+
 		// First, find the local node's interface from any EdgeInfo entry's LocalInterface
 		var localNodeInterface string
 		for _, edge := range segment.EdgeInfo {
@@ -172,7 +172,7 @@ func ExportNwdiag(nodes map[string]*graph.Node, edges map[string]map[string][]*g
 				break
 			}
 		}
-		
+
 		// Then populate interfaces for all nodes
 		for nodeID, edge := range segment.EdgeInfo {
 			if edge.RemoteInterface != "" {
@@ -182,7 +182,7 @@ func ExportNwdiag(nodes map[string]*graph.Node, edges map[string]map[string][]*g
 				nodeInterfaces[nodeID] = edge.LocalInterface
 			}
 		}
-		
+
 		// For nodes without EdgeInfo entry, try to identify the local node
 		// The local node is the one not in EdgeInfo but in ConnectedNodes
 		for _, nodeID := range segment.ConnectedNodes {
@@ -196,7 +196,7 @@ func ExportNwdiag(nodes map[string]*graph.Node, edges map[string]map[string][]*g
 				}
 			}
 		}
-		
+
 		// Mark all pairs in this segment with their interfaces as processed
 		for i, nodeA := range segment.ConnectedNodes {
 			for j, nodeB := range segment.ConnectedNodes {
@@ -246,7 +246,7 @@ func ExportNwdiag(nodes map[string]*graph.Node, edges map[string]map[string][]*g
 
 				// Determine if this is RDMA
 				hasRDMA := edge.LocalRDMADevice != "" || edge.RemoteRDMADevice != ""
-				
+
 				// Determine speed
 				maxSpeed := edge.LocalSpeed
 				if edge.RemoteSpeed > maxSpeed {
@@ -254,12 +254,12 @@ func ExportNwdiag(nodes map[string]*graph.Node, edges map[string]map[string][]*g
 				}
 
 				networkColor := getNetworkColor(maxSpeed, hasRDMA)
-				
+
 				peerNetworkName := fmt.Sprintf("p2p_%d", peerNetworkIdx)
 				peerNetworkIdx++
 
 				sb.WriteString(fmt.Sprintf("  network %s {\n", peerNetworkName))
-				
+
 				// Add address with speed for peer network
 				if maxSpeed > 0 {
 					sb.WriteString(fmt.Sprintf("    address = \"P2P (%d Mbps", maxSpeed))
@@ -284,7 +284,7 @@ func ExportNwdiag(nodes map[string]*graph.Node, edges map[string]map[string][]*g
 					}
 					srcAddrStr += ")"
 				}
-				sb.WriteString(fmt.Sprintf("    %s [address = \"%s\", description = \"%s\"", 
+				sb.WriteString(fmt.Sprintf("    %s [address = \"%s\", description = \"%s\"",
 					srcHostname, srcAddrStr, srcNode.Hostname))
 				if srcNode.IsLocal {
 					sb.WriteString(", color = \"#90EE90\"")
@@ -340,7 +340,7 @@ func getNetworkColor(speedMbps int, hasRDMA bool) string {
 	if hasRDMA {
 		return "#87CEEB" // Sky blue for RDMA
 	}
-	
+
 	if speedMbps >= 100000 {
 		return "#FFD700" // Gold for 100+ Gbps
 	} else if speedMbps >= 40000 {
@@ -352,7 +352,7 @@ func getNetworkColor(speedMbps int, hasRDMA bool) string {
 	} else if speedMbps > 0 {
 		return "#D3D3D3" // Light gray for < 1 Gbps
 	}
-	
+
 	return "" // Default color
 }
 
@@ -361,11 +361,11 @@ func sanitizeHostname(hostname string) string {
 	// Replace characters that aren't valid in identifiers
 	sanitized := strings.ReplaceAll(hostname, "-", "_")
 	sanitized = strings.ReplaceAll(sanitized, ".", "_")
-	
+
 	// Ensure it starts with a letter or underscore
 	if len(sanitized) > 0 && (sanitized[0] >= '0' && sanitized[0] <= '9') {
 		sanitized = "node_" + sanitized
 	}
-	
+
 	return sanitized
 }
