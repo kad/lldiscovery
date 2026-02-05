@@ -500,23 +500,24 @@ func (g *Graph) GetNetworkSegments() []NetworkSegment {
 
 	localID := g.localNode.MachineID
 
-	// Build a connectivity graph: which node:interface pairs can reach which other node:interface pairs
-	// Key insight: If B:if2 can reach A:if1, they're on the same VLAN
-	connectivity := make(map[string]map[string]bool) // [nodeID:iface][otherNodeID:otherIface] -> true
+	// Step 1: Build a graph of node:interface pairs from all edges
+	// Map: "nodeID:interface" -> set of "otherNodeID:otherInterface"
+	connectivity := make(map[string]map[string]bool)
 
-	// Scan all edges (both direct and indirect) to build bidirectional connectivity map
+	// Scan ALL edges (direct and indirect are treated equally)
 	for srcID, dests := range g.edges {
 		for dstID, edgeList := range dests {
 			for _, edge := range edgeList {
+				// Create keys for source and destination node:interface pairs
 				srcKey := fmt.Sprintf("%s:%s", srcID, edge.LocalInterface)
 				dstKey := fmt.Sprintf("%s:%s", dstID, edge.RemoteInterface)
 
+				// Add bidirectional edge
 				if connectivity[srcKey] == nil {
 					connectivity[srcKey] = make(map[string]bool)
 				}
 				connectivity[srcKey][dstKey] = true
 
-				// Add reverse connectivity (bidirectional)
 				if connectivity[dstKey] == nil {
 					connectivity[dstKey] = make(map[string]bool)
 				}
@@ -525,47 +526,46 @@ func (g *Graph) GetNetworkSegments() []NetworkSegment {
 		}
 	}
 
-	// Find connected components using BFS
-	// Each component represents a potential VLAN/segment
+	// Step 2: Find connected components using BFS
+	// Each component represents a VLAN
 	visited := make(map[string]bool)
-	var components [][]string
+	var vlans [][]string
 
-	for nodeIface := range connectivity {
-		if visited[nodeIface] {
+	for startNodeIface := range connectivity {
+		if visited[startNodeIface] {
 			continue
 		}
 
-		// BFS to find all connected node:interface pairs
-		component := []string{nodeIface}
-		visited[nodeIface] = true
-		queue := []string{nodeIface}
+		// BFS to find all node:interface pairs in this VLAN
+		vlan := []string{}
+		queue := []string{startNodeIface}
+		visited[startNodeIface] = true
 
 		for len(queue) > 0 {
 			current := queue[0]
 			queue = queue[1:]
+			vlan = append(vlan, current)
 
+			// Add all neighbors to the queue
 			for neighbor := range connectivity[current] {
 				if !visited[neighbor] {
 					visited[neighbor] = true
-					component = append(component, neighbor)
 					queue = append(queue, neighbor)
 				}
 			}
 		}
 
-		components = append(components, component)
+		vlans = append(vlans, vlan)
 	}
 
-	// Convert components to segments, filtering for size
-	// Note: We trust that components from transitive discovery represent real VLANs
-	// even if we can't verify full clique property (some edges may be missing)
+	// Step 3: Convert VLANs to NetworkSegment format
 	segmentID := 0
-	for _, component := range components {
-		// Extract unique node IDs
+	for _, vlan := range vlans {
+		// Extract unique node IDs and interface names
 		nodeSet := make(map[string]bool)
 		interfaceSet := make(map[string]bool)
 
-		for _, nodeIface := range component {
+		for _, nodeIface := range vlan {
 			parts := strings.SplitN(nodeIface, ":", 2)
 			if len(parts) == 2 {
 				nodeSet[parts[0]] = true
@@ -573,8 +573,8 @@ func (g *Graph) GetNetworkSegments() []NetworkSegment {
 			}
 		}
 
-		// Need at least 3 unique nodes for a segment
-		// With only 2 nodes, it's a peer-to-peer link, not a shared network
+		// Filter: Only keep VLANs with 3+ unique nodes
+		// 2-node connections are peer-to-peer links, not shared networks
 		if len(nodeSet) < 3 {
 			continue
 		}
@@ -586,27 +586,28 @@ func (g *Graph) GetNetworkSegments() []NetworkSegment {
 		}
 		sort.Strings(nodeIDs)
 
-		// Determine interface name for the segment
-		var segmentInterface string
+		// Determine interface label for the VLAN
+		var vlanInterface string
 		if len(interfaceSet) == 1 {
+			// All use same interface name
 			for iface := range interfaceSet {
-				segmentInterface = iface
+				vlanInterface = iface
 			}
 		} else {
-			// Multiple interface names - create a representative name
+			// Mixed interface names
 			interfaces := make([]string, 0, len(interfaceSet))
 			for iface := range interfaceSet {
 				interfaces = append(interfaces, iface)
 			}
 			sort.Strings(interfaces)
 			if len(interfaces) <= 3 {
-				segmentInterface = strings.Join(interfaces, "+")
+				vlanInterface = strings.Join(interfaces, "+")
 			} else {
-				segmentInterface = fmt.Sprintf("mixed(%d)", len(interfaces))
+				vlanInterface = fmt.Sprintf("mixed(%d)", len(interfaces))
 			}
 		}
 
-		// Collect edge info from local node to segment members
+		// Collect edge info from local node to VLAN members
 		edgeInfo := make(map[string]*Edge)
 		if localEdges, ok := g.edges[localID]; ok {
 			for _, nodeID := range nodeIDs {
@@ -614,7 +615,7 @@ func (g *Graph) GetNetworkSegments() []NetworkSegment {
 					continue
 				}
 				if edges, ok := localEdges[nodeID]; ok {
-					// Use the first edge (prefer direct over indirect)
+					// Prefer direct edges over indirect
 					for _, edge := range edges {
 						if existing, ok := edgeInfo[nodeID]; !ok || (!existing.Direct && edge.Direct) {
 							edgeInfo[nodeID] = edge
@@ -626,7 +627,7 @@ func (g *Graph) GetNetworkSegments() []NetworkSegment {
 
 		segments = append(segments, NetworkSegment{
 			ID:             fmt.Sprintf("segment_%d", segmentID),
-			Interface:      segmentInterface,
+			Interface:      vlanInterface,
 			ConnectedNodes: nodeIDs,
 			EdgeInfo:       edgeInfo,
 		})
