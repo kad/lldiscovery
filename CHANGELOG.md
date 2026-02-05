@@ -3,6 +3,12 @@
 ## [Unreleased]
 
 ### Added
+
+- **GoReleaser Support**: Automated releases with deb/rpm packages
+  - Linux x86_64 packages (.deb for Debian/Ubuntu, .rpm for RHEL/CentOS/Fedora)
+  - Automated GitHub releases with GitHub Actions
+  - Package installation includes user creation, systemd service, and proper permissions
+  - Binary archives with documentation and configuration files
 - **CLI Flag Configuration**: All configuration parameters now available as CLI flags
   - Timing: `-send-interval`, `-node-timeout`, `-export-interval`
   - Network: `-multicast-address`, `-multicast-port`
@@ -22,6 +28,12 @@
   - Topology depth limited to 1-hop (only direct neighbors shared) to prevent packet size explosion
   - Backward compatible: old daemons ignore neighbors field, new daemons work without it
   - See [TRANSITIVE_DISCOVERY.md](TRANSITIVE_DISCOVERY.md) for complete guide
+
+### Changed
+
+- Enhanced version output to include commit hash and build date
+
+### Previous Features
 - **RDMA-to-RDMA Edge Marking**: Visual distinction for full RDMA connections
   - Edges with RDMA on both sides marked with `[RDMA-to-RDMA]` label
   - RDMA-to-RDMA edges displayed in **blue** with **thick lines** (penwidth=2.0)

@@ -21,7 +21,10 @@ import (
 )
 
 var (
-	version     = "dev"
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+	
 	configPath  = flag.String("config", "", "path to configuration file")
 	logLevel    = flag.String("log-level", "", "log level (debug, info, warn, error)")
 	showVersion = flag.Bool("version", false, "show version and exit")
@@ -57,6 +60,8 @@ func main() {
 
 	if *showVersion {
 		fmt.Printf("lldiscovery %s\n", version)
+		fmt.Printf("  commit: %s\n", commit)
+		fmt.Printf("  built:  %s\n", date)
 		os.Exit(0)
 	}
 

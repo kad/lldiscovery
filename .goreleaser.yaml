@@ -1,0 +1,148 @@
+# GoReleaser configuration for lldiscovery
+# https://goreleaser.com
+
+version: 2
+
+project_name: lldiscovery
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
+builds:
+  - id: lldiscovery
+    main: ./cmd/lldiscovery
+    binary: lldiscovery
+    goos:
+      - linux
+    goarch:
+      - amd64
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+
+archives:
+  - id: lldiscovery
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE*
+      - README.md
+      - CHANGELOG.md
+      - config.example.json
+      - lldiscovery.service
+
+nfpms:
+  - id: lldiscovery
+    package_name: lldiscovery
+    homepage: https://github.com/akanevsk/lldiscovery
+    maintainer: Your Name <your.email@example.com>
+    description: Network discovery daemon for VLAN-segmented environments using IPv6 link-local multicast
+    license: MIT
+    
+    formats:
+      - deb
+      - rpm
+    
+    bindir: /usr/local/bin
+    
+    contents:
+      # Configuration example
+      - src: config.example.json
+        dst: /etc/lldiscovery/config.json
+        type: config|noreplace
+        file_info:
+          mode: 0640
+          owner: root
+          group: lldiscovery
+      
+      # Systemd service
+      - src: lldiscovery.service
+        dst: /etc/systemd/system/lldiscovery.service
+        file_info:
+          mode: 0644
+      
+      # Data directory
+      - dst: /var/lib/lldiscovery
+        type: dir
+        file_info:
+          mode: 0755
+          owner: lldiscovery
+          group: lldiscovery
+    
+    scripts:
+      preinstall: scripts/preinstall.sh
+      postinstall: scripts/postinstall.sh
+      preremove: scripts/preremove.sh
+    
+    dependencies:
+      - systemd
+    
+    overrides:
+      deb:
+        dependencies:
+          - systemd
+      rpm:
+        dependencies:
+          - systemd
+
+checksum:
+  name_template: 'checksums.txt'
+
+snapshot:
+  version_template: "{{ .Version }}-next"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+      - Merge pull request
+      - Merge branch
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: 'Bug fixes'
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 1
+    - title: Others
+      order: 999
+
+release:
+  github:
+    owner: akanevsk
+    name: lldiscovery
+  
+  prerelease: auto
+  
+  name_template: "{{.ProjectName}} {{.Version}}"
+  
+  footer: |
+    ## Installation
+    
+    ### Debian/Ubuntu (.deb)
+    ```bash
+    wget https://github.com/akanevsk/lldiscovery/releases/download/{{ .Tag }}/lldiscovery_{{ .Version }}_linux_amd64.deb
+    sudo dpkg -i lldiscovery_{{ .Version }}_linux_amd64.deb
+    ```
+    
+    ### RHEL/CentOS/Fedora (.rpm)
+    ```bash
+    wget https://github.com/akanevsk/lldiscovery/releases/download/{{ .Tag }}/lldiscovery_{{ .Version }}_linux_amd64.rpm
+    sudo rpm -i lldiscovery_{{ .Version }}_linux_amd64.rpm
+    ```
+    
+    ### Binary
+    ```bash
+    wget https://github.com/akanevsk/lldiscovery/releases/download/{{ .Tag }}/lldiscovery_{{ .Version }}_linux_amd64.tar.gz
+    tar xzf lldiscovery_{{ .Version }}_linux_amd64.tar.gz
+    sudo cp lldiscovery /usr/local/bin/
+    ```

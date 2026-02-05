@@ -3,3 +3,9 @@
 *.png
 *.svg
 /var/
+
+# GoReleaser
+dist/
+*.deb
+*.rpm
+*.tar.gz

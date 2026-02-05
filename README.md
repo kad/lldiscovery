@@ -26,14 +26,66 @@ Network discovery daemon for VLAN-segmented environments using IPv6 link-local m
 
 ## Installation
 
-### Build from source
+### From Package (Recommended)
+
+**Debian/Ubuntu (.deb):**
+```bash
+wget https://github.com/akanevsk/lldiscovery/releases/latest/download/lldiscovery_VERSION_linux_amd64.deb
+sudo dpkg -i lldiscovery_VERSION_linux_amd64.deb
+```
+
+**RHEL/CentOS/Fedora (.rpm):**
+```bash
+wget https://github.com/akanevsk/lldiscovery/releases/latest/download/lldiscovery_VERSION_linux_amd64.rpm
+sudo rpm -i lldiscovery_VERSION_linux_amd64.rpm
+```
+
+Package installation automatically:
+- Creates `lldiscovery` system user
+- Installs systemd service file
+- Creates `/etc/lldiscovery/config.json` (config|noreplace)
+- Creates `/var/lib/lldiscovery` data directory
+- Sets proper ownership and permissions
+
+After package installation:
+```bash
+# Edit configuration if needed
+sudo nano /etc/lldiscovery/config.json
+
+# Enable and start service
+sudo systemctl enable lldiscovery
+sudo systemctl start lldiscovery
+
+# Check status
+sudo systemctl status lldiscovery
+
+# View logs
+journalctl -u lldiscovery -f
+```
+
+### From Binary
+
+Download the latest binary from [releases](https://github.com/akanevsk/lldiscovery/releases):
+
+```bash
+wget https://github.com/akanevsk/lldiscovery/releases/latest/download/lldiscovery_VERSION_linux_amd64.tar.gz
+tar xzf lldiscovery_VERSION_linux_amd64.tar.gz
+sudo cp lldiscovery /usr/local/bin/
+sudo chmod +x /usr/local/bin/lldiscovery
+```
+
+Then follow manual setup steps below.
+
+### Build from Source
 
 ```bash
 go build -o lldiscovery ./cmd/lldiscovery
 sudo cp lldiscovery /usr/local/bin/
 ```
 
-### Setup
+### Manual Setup (for binary or source builds)
+
+If installing from binary or building from source, follow these steps:
 
 ```bash
 # Create user and directories
