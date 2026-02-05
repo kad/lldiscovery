@@ -61,7 +61,7 @@ func TestAddOrUpdate_NewNode(t *testing.T) {
 	})
 	g.ClearChanges()
 
-	g.AddOrUpdate("remote-456", "remotehost", "eth1", "fe80::2", "eth0", "mlx5_1", "0x3333", "0x4444", 0, true, "")
+	g.AddOrUpdate("remote-456", "remotehost", "eth1", "fe80::2", "eth0", "mlx5_1", "0x3333", "0x4444", 0, nil, true, "")
 
 	node := g.nodes["remote-456"]
 	if node == nil {
@@ -99,11 +99,11 @@ func TestAddOrUpdate_UpdateExisting(t *testing.T) {
 		"eth0": {IPAddress: "fe80::1"},
 	})
 
-	g.AddOrUpdate("remote-456", "oldhost", "eth1", "fe80::2", "eth0", "", "", "", 0, true, "")
+	g.AddOrUpdate("remote-456", "oldhost", "eth1", "fe80::2", "eth0", "", "", "", 0, nil, true, "")
 	g.ClearChanges()
 
 	// Update hostname
-	g.AddOrUpdate("remote-456", "newhost", "eth1", "fe80::2", "eth0", "", "", "", 0, true, "")
+	g.AddOrUpdate("remote-456", "newhost", "eth1", "fe80::2", "eth0", "", "", "", 0, nil, true, "")
 
 	node := g.nodes["remote-456"]
 	if node.Hostname != "newhost" {
@@ -121,7 +121,7 @@ func TestAddOrUpdate_DirectEdge(t *testing.T) {
 	})
 	g.ClearChanges()
 
-	g.AddOrUpdate("remote-456", "remotehost", "eth1", "fe80::2", "eth0", "mlx5_1", "0x3333", "0x4444", 0, true, "")
+	g.AddOrUpdate("remote-456", "remotehost", "eth1", "fe80::2", "eth0", "mlx5_1", "0x3333", "0x4444", 0, nil, true, "")
 
 	edges := g.edges["local-123"]["remote-456"]
 	if len(edges) != 1 {
@@ -150,7 +150,7 @@ func TestAddOrUpdate_UpgradeIndirectToDirect(t *testing.T) {
 	})
 
 	// Add indirect edge
-	g.AddOrUpdate("remote-456", "remotehost", "eth1", "fe80::2", "eth0", "", "", "", 0, false, "intermediate")
+	g.AddOrUpdate("remote-456", "remotehost", "eth1", "fe80::2", "eth0", "", "", "", 0, nil, false, "intermediate")
 
 	edges := g.edges["local-123"]["remote-456"]
 	if edges[0].Direct {
@@ -160,7 +160,7 @@ func TestAddOrUpdate_UpgradeIndirectToDirect(t *testing.T) {
 	g.ClearChanges()
 
 	// Upgrade to direct
-	g.AddOrUpdate("remote-456", "remotehost", "eth1", "fe80::2", "eth0", "", "", "", 0, true, "")
+	g.AddOrUpdate("remote-456", "remotehost", "eth1", "fe80::2", "eth0", "", "", "", 0, nil, true, "")
 
 	edges = g.edges["local-123"]["remote-456"]
 	if len(edges) != 1 {
@@ -179,7 +179,7 @@ func TestAddOrUpdateIndirectEdge(t *testing.T) {
 	g.SetLocalNode("local-123", "localhost", map[string]InterfaceDetails{})
 
 	// Add intermediate node
-	g.AddOrUpdate("intermediate-789", "intermediate", "eth0", "fe80::3", "eth0", "", "", "", 0, true, "")
+	g.AddOrUpdate("intermediate-789", "intermediate", "eth0", "fe80::3", "eth0", "", "", "", 0, nil, true, "")
 
 	g.ClearChanges()
 
@@ -188,10 +188,12 @@ func TestAddOrUpdateIndirectEdge(t *testing.T) {
 		"remote-456", "remotehost",
 		"eth1", "fe80::2",
 		"mlx5_1", "0x3333", "0x4444",
-		0, // neighbor speed
+		0,   // neighbor speed
+		nil, // neighbor prefixes
 		"eth0", "fe80::3",
 		"", "", "",
-		0, // intermediate speed
+		0,   // intermediate speed
+		nil, // intermediate prefixes
 		"intermediate-789",
 	)
 
@@ -242,8 +244,8 @@ func TestRemoveExpired(t *testing.T) {
 	})
 
 	// Add two nodes
-	g.AddOrUpdate("remote-456", "remote1", "eth1", "fe80::2", "eth0", "", "", "", 0, true, "")
-	g.AddOrUpdate("remote-789", "remote2", "eth2", "fe80::3", "eth0", "", "", "", 0, true, "")
+	g.AddOrUpdate("remote-456", "remote1", "eth1", "fe80::2", "eth0", "", "", "", 0, nil, true, "")
+	g.AddOrUpdate("remote-789", "remote2", "eth2", "fe80::3", "eth0", "", "", "", 0, nil, true, "")
 
 	// Age out first node
 	g.nodes["remote-456"].LastSeen = time.Now().Add(-2 * time.Hour)
@@ -278,8 +280,8 @@ func TestRemoveExpired_CascadingEdges(t *testing.T) {
 	})
 
 	// Add intermediate node with indirect edge
-	g.AddOrUpdate("intermediate-789", "intermediate", "eth0", "fe80::3", "eth0", "", "", "", 0, true, "")
-	g.AddOrUpdate("remote-456", "remote", "eth1", "fe80::2", "", "", "", "", 0, false, "intermediate-789")
+	g.AddOrUpdate("intermediate-789", "intermediate", "eth0", "fe80::3", "eth0", "", "", "", 0, nil, true, "")
+	g.AddOrUpdate("remote-456", "remote", "eth1", "fe80::2", "", "", "", "", 0, nil, false, "intermediate-789")
 
 	// Age out intermediate node
 	g.nodes["intermediate-789"].LastSeen = time.Now().Add(-2 * time.Hour)
@@ -305,7 +307,7 @@ func TestGetNodes(t *testing.T) {
 	g.SetLocalNode("local-123", "localhost", map[string]InterfaceDetails{
 		"eth0": {IPAddress: "fe80::1"},
 	})
-	g.AddOrUpdate("remote-456", "remote", "eth1", "fe80::2", "eth0", "", "", "", 0, true, "")
+	g.AddOrUpdate("remote-456", "remote", "eth1", "fe80::2", "eth0", "", "", "", 0, nil, true, "")
 
 	nodes := g.GetNodes()
 
@@ -335,7 +337,7 @@ func TestGetEdges(t *testing.T) {
 	g.SetLocalNode("local-123", "localhost", map[string]InterfaceDetails{
 		"eth0": {IPAddress: "fe80::1", RDMADevice: "mlx5_0"},
 	})
-	g.AddOrUpdate("remote-456", "remote", "eth1", "fe80::2", "eth0", "mlx5_1", "0x3333", "0x4444", 0, true, "")
+	g.AddOrUpdate("remote-456", "remote", "eth1", "fe80::2", "eth0", "mlx5_1", "0x3333", "0x4444", 0, nil, true, "")
 
 	edges := g.GetEdges()
 
@@ -369,10 +371,10 @@ func TestGetDirectNeighbors(t *testing.T) {
 	})
 
 	// Add direct neighbor
-	g.AddOrUpdate("remote-direct", "direct", "eth1", "fe80::2", "eth0", "mlx5_1", "0x3333", "0x4444", 0, true, "")
+	g.AddOrUpdate("remote-direct", "direct", "eth1", "fe80::2", "eth0", "mlx5_1", "0x3333", "0x4444", 0, nil, true, "")
 
 	// Add indirect neighbor
-	g.AddOrUpdate("remote-indirect", "indirect", "eth2", "fe80::3", "", "", "", "", 0, false, "intermediate")
+	g.AddOrUpdate("remote-indirect", "indirect", "eth2", "fe80::3", "", "", "", "", 0, nil, false, "intermediate")
 
 	neighbors := g.GetDirectNeighbors()
 
@@ -454,8 +456,8 @@ func TestMultipleEdges(t *testing.T) {
 	})
 
 	// Add edges on different interfaces to same remote node
-	g.AddOrUpdate("remote-456", "remote", "eth10", "fe80::10", "eth0", "", "", "", 0, true, "")
-	g.AddOrUpdate("remote-456", "remote", "eth11", "fe80::11", "eth1", "", "", "", 0, true, "")
+	g.AddOrUpdate("remote-456", "remote", "eth10", "fe80::10", "eth0", "", "", "", 0, nil, true, "")
+	g.AddOrUpdate("remote-456", "remote", "eth11", "fe80::11", "eth1", "", "", "", 0, nil, true, "")
 
 	edges := g.edges["local-123"]["remote-456"]
 	if len(edges) != 2 {
@@ -493,7 +495,7 @@ func TestConcurrentAccess(t *testing.T) {
 	// Concurrent writes
 	go func() {
 		for i := 0; i < 100; i++ {
-			g.AddOrUpdate("remote-456", "remote", "eth1", "fe80::2", "eth0", "", "", "", 0, true, "")
+			g.AddOrUpdate("remote-456", "remote", "eth1", "fe80::2", "eth0", "", "", "", 0, nil, true, "")
 		}
 		done <- true
 	}()

@@ -29,15 +29,15 @@ func createTestGraph() *graph.Graph {
 	})
 
 	// Add remote nodes with direct edges
-	g.AddOrUpdate("remote-456", "remote-1", "eth0", "fe80::3", "eth0", "", "", "", 1000, true, "")
-	g.AddOrUpdate("remote-789", "remote-2", "eth0", "fe80::4", "eth0", "", "", "", 1000, true, "")
+	g.AddOrUpdate("remote-456", "remote-1", "eth0", "fe80::3", "eth0", "", "", "", 1000, nil, true, "")
+	g.AddOrUpdate("remote-789", "remote-2", "eth0", "fe80::4", "eth0", "", "", "", 1000, nil, true, "")
 
 	// Add an indirect edge (remote-1 knows about remote-2)
 	// neighborMachineID, neighborHostname, neighborIface, neighborAddress,
-	// neighborRDMA, neighborNodeGUID, neighborSysImageGUID, neighborSpeed,
-	// intermediateIface, intermediateAddress, intermediateRDMA, intermediateNodeGUID, intermediateSysImageGUID, intermediateSpeed,
+	// neighborRDMA, neighborNodeGUID, neighborSysImageGUID, neighborSpeed, neighborPrefixes,
+	// intermediateIface, intermediateAddress, intermediateRDMA, intermediateNodeGUID, intermediateSysImageGUID, intermediateSpeed, intermediatePrefixes,
 	// learnedFrom
-	g.AddOrUpdateIndirectEdge("remote-789", "remote-2", "eth0", "fe80::4", "", "", "", 1000, "eth0", "fe80::3", "", "", "", 1000, "remote-456")
+	g.AddOrUpdateIndirectEdge("remote-789", "remote-2", "eth0", "fe80::4", "", "", "", 1000, nil, "eth0", "fe80::3", "", "", "", 1000, nil, "remote-456")
 
 	return g
 }

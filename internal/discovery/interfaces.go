@@ -11,13 +11,14 @@ import (
 )
 
 type InterfaceInfo struct {
-	Name         string
-	LinkLocal    string
-	IsRDMA       bool
-	RDMADevice   string
-	NodeGUID     string
-	SysImageGUID string
-	Speed        int // Link speed in Mbps
+	Name           string
+	LinkLocal      string
+	GlobalPrefixes []string // Global unicast network prefixes (e.g., "2001:db8:1::/64")
+	IsRDMA         bool
+	RDMADevice     string
+	NodeGUID       string
+	SysImageGUID   string
+	Speed          int // Link speed in Mbps
 }
 
 func GetActiveInterfaces() ([]InterfaceInfo, error) {
@@ -45,6 +46,10 @@ func GetActiveInterfaces() ([]InterfaceInfo, error) {
 			continue
 		}
 
+		var linkLocal string
+		var globalPrefixes []string
+
+		// Collect both link-local and global unicast addresses
 		for _, addr := range addrs {
 			ipNet, ok := addr.(*net.IPNet)
 			if !ok {
@@ -53,16 +58,30 @@ func GetActiveInterfaces() ([]InterfaceInfo, error) {
 
 			ip := ipNet.IP
 			if ip.To4() != nil {
-				continue
+				continue // Skip IPv4
 			}
 
-			if !ip.IsLinkLocalUnicast() {
-				continue
+			if ip.IsLinkLocalUnicast() {
+				// Found link-local address
+				if linkLocal == "" {
+					linkLocal = formatIPv6WithZone(ip, iface.Name)
+				}
+			} else if ip.IsGlobalUnicast() {
+				// Found global unicast address - extract network prefix
+				prefix := fmt.Sprintf("%s/%d", ipNet.IP.Mask(ipNet.Mask).String(), getPrefixLength(ipNet.Mask))
+				// Avoid duplicates
+				if !contains(globalPrefixes, prefix) {
+					globalPrefixes = append(globalPrefixes, prefix)
+				}
 			}
+		}
 
+		// Only add interface if it has a link-local address
+		if linkLocal != "" {
 			info := InterfaceInfo{
-				Name:      iface.Name,
-				LinkLocal: formatIPv6WithZone(ip, iface.Name),
+				Name:           iface.Name,
+				LinkLocal:      linkLocal,
+				GlobalPrefixes: globalPrefixes,
 			}
 
 			// Check if this interface has an RDMA device
@@ -77,7 +96,6 @@ func GetActiveInterfaces() ([]InterfaceInfo, error) {
 			info.Speed = getLinkSpeed(iface.Name)
 
 			result = append(result, info)
-			break
 		}
 	}
 
@@ -86,6 +104,22 @@ func GetActiveInterfaces() ([]InterfaceInfo, error) {
 
 func formatIPv6WithZone(ip net.IP, zone string) string {
 	return fmt.Sprintf("%s%%%s", ip.String(), zone)
+}
+
+// getPrefixLength returns the prefix length from an IPv6 mask
+func getPrefixLength(mask net.IPMask) int {
+	ones, _ := mask.Size()
+	return ones
+}
+
+// contains checks if a string slice contains a specific string
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
 }
 
 func ParseSourceAddr(addr string) string {

@@ -226,7 +226,7 @@ func main() {
 
 	receiver, err := discovery.NewReceiver(cfg.MulticastAddr, cfg.MulticastPort, logger, func(p *discovery.Packet, sourceIP, receivingIface string) {
 		// Add direct edge for received packet
-		g.AddOrUpdate(p.MachineID, p.Hostname, p.Interface, sourceIP, receivingIface, p.RDMADevice, p.NodeGUID, p.SysImageGUID, p.Speed, true, "")
+		g.AddOrUpdate(p.MachineID, p.Hostname, p.Interface, sourceIP, receivingIface, p.RDMADevice, p.NodeGUID, p.SysImageGUID, p.Speed, p.GlobalPrefixes, true, "")
 
 		// Process neighbors if included
 		if cfg.IncludeNeighbors && len(p.Neighbors) > 0 {
@@ -249,14 +249,16 @@ func main() {
 					neighbor.RemoteRDMADevice, // Neighbor's RDMA
 					neighbor.RemoteNodeGUID,
 					neighbor.RemoteSysImageGUID,
-					neighbor.RemoteSpeed,     // Neighbor's speed
-					neighbor.LocalInterface,  // Sender's interface (connecting to neighbor)
-					neighbor.LocalAddress,    // Sender's address
-					neighbor.LocalRDMADevice, // Sender's RDMA
+					neighbor.RemoteSpeed,      // Neighbor's speed
+					neighbor.RemotePrefixes,   // Neighbor's prefixes
+					neighbor.LocalInterface,   // Sender's interface (connecting to neighbor)
+					neighbor.LocalAddress,     // Sender's address
+					neighbor.LocalRDMADevice,  // Sender's RDMA
 					neighbor.LocalNodeGUID,
 					neighbor.LocalSysImageGUID,
-					neighbor.LocalSpeed, // Sender's speed
-					p.MachineID,         // Learned from sender
+					neighbor.LocalSpeed,    // Sender's speed
+					neighbor.LocalPrefixes, // Sender's prefixes
+					p.MachineID,            // Learned from sender
 				)
 			}
 		}

@@ -15,7 +15,7 @@ func TestGetNetworkSegments_NoSegments(t *testing.T) {
 	})
 
 	// Only one remote neighbor (below threshold)
-	g.AddOrUpdate("machine-b", "host-b", "eth0", "fe80::2", "eth0", "", "", "", 0, true, "")
+	g.AddOrUpdate("machine-b", "host-b", "eth0", "fe80::2", "eth0", "", "", "", 0, nil, true, "")
 
 	segments := g.GetNetworkSegments()
 	if len(segments) != 0 {
@@ -34,36 +34,36 @@ func TestGetNetworkSegments_ThreeNeighbors(t *testing.T) {
 	})
 
 	// Direct connections from A to B, C, D
-	g.AddOrUpdate("machine-b", "host-b", "eth0", "fe80::2", "eth0", "", "", "", 0, true, "")
-	g.AddOrUpdate("machine-c", "host-c", "eth0", "fe80::3", "eth0", "", "", "", 0, true, "")
-	g.AddOrUpdate("machine-d", "host-d", "eth0", "fe80::4", "eth0", "", "", "", 0, true, "")
+	g.AddOrUpdate("machine-b", "host-b", "eth0", "fe80::2", "eth0", "", "", "", 0, nil, true, "")
+	g.AddOrUpdate("machine-c", "host-c", "eth0", "fe80::3", "eth0", "", "", "", 0, nil, true, "")
+	g.AddOrUpdate("machine-d", "host-d", "eth0", "fe80::4", "eth0", "", "", "", 0, nil, true, "")
 
 	// With transitive discovery, A learns that B, C, D are also connected to each other
 	// This forms a clique: A-B-C-D all mutually connected on eth0
 	// Simulate indirect edges: B->C, B->D, C->B, C->D, D->B, D->C
 	g.AddOrUpdateIndirectEdge("machine-c", "host-c", "eth0", "fe80::3", 
-		"", "", "", 0,  // neighbor RDMA info
-		"eth0", "fe80::2", "", "", "", 0,  // intermediate (B) info
+		"", "", "", 0, nil,  // neighbor RDMA info + prefixes
+		"eth0", "fe80::2", "", "", "", 0, nil,  // intermediate (B) info + prefixes
 		"machine-b")
 	g.AddOrUpdateIndirectEdge("machine-d", "host-d", "eth0", "fe80::4",
-		"", "", "", 0,
-		"eth0", "fe80::2", "", "", "", 0,
+		"", "", "", 0, nil,
+		"eth0", "fe80::2", "", "", "", 0, nil,
 		"machine-b")
 	g.AddOrUpdateIndirectEdge("machine-b", "host-b", "eth0", "fe80::2",
-		"", "", "", 0,
-		"eth0", "fe80::3", "", "", "", 0,
+		"", "", "", 0, nil,
+		"eth0", "fe80::3", "", "", "", 0, nil,
 		"machine-c")
 	g.AddOrUpdateIndirectEdge("machine-d", "host-d", "eth0", "fe80::4",
-		"", "", "", 0,
-		"eth0", "fe80::3", "", "", "", 0,
+		"", "", "", 0, nil,
+		"eth0", "fe80::3", "", "", "", 0, nil,
 		"machine-c")
 	g.AddOrUpdateIndirectEdge("machine-b", "host-b", "eth0", "fe80::2",
-		"", "", "", 0,
-		"eth0", "fe80::4", "", "", "", 0,
+		"", "", "", 0, nil,
+		"eth0", "fe80::4", "", "", "", 0, nil,
 		"machine-d")
 	g.AddOrUpdateIndirectEdge("machine-c", "host-c", "eth0", "fe80::3",
-		"", "", "", 0,
-		"eth0", "fe80::4", "", "", "", 0,
+		"", "", "", 0, nil,
+		"eth0", "fe80::4", "", "", "", 0, nil,
 		"machine-d")
 
 	segments := g.GetNetworkSegments()
@@ -100,17 +100,17 @@ func TestGetNetworkSegments_BelowThreshold(t *testing.T) {
 	})
 
 	// 2 neighbors on eth0: total of 3 nodes (local + 2), forming a triangle clique
-	g.AddOrUpdate("machine-b", "host-b", "eth0", "fe80::2", "eth0", "", "", "", 0, true, "")
-	g.AddOrUpdate("machine-c", "host-c", "eth0", "fe80::3", "eth0", "", "", "", 0, true, "")
+	g.AddOrUpdate("machine-b", "host-b", "eth0", "fe80::2", "eth0", "", "", "", 0, nil, true, "")
+	g.AddOrUpdate("machine-c", "host-c", "eth0", "fe80::3", "eth0", "", "", "", 0, nil, true, "")
 
 	// With transitive discovery: B and C also know about each other
 	g.AddOrUpdateIndirectEdge("machine-c", "host-c", "eth0", "fe80::3",
-		"", "", "", 0,
-		"eth0", "fe80::2", "", "", "", 0,
+		"", "", "", 0, nil,
+		"eth0", "fe80::2", "", "", "", 0, nil,
 		"machine-b")
 	g.AddOrUpdateIndirectEdge("machine-b", "host-b", "eth0", "fe80::2",
-		"", "", "", 0,
-		"eth0", "fe80::3", "", "", "", 0,
+		"", "", "", 0, nil,
+		"eth0", "fe80::3", "", "", "", 0, nil,
 		"machine-c")
 
 	segments := g.GetNetworkSegments()
@@ -133,7 +133,7 @@ func TestGetNetworkSegments_TooFewNodes(t *testing.T) {
 	})
 
 	// Only 1 neighbor on eth0: total of 2 nodes, below threshold
-	g.AddOrUpdate("machine-b", "host-b", "eth0", "fe80::2", "eth0", "", "", "", 0, true, "")
+	g.AddOrUpdate("machine-b", "host-b", "eth0", "fe80::2", "eth0", "", "", "", 0, nil, true, "")
 
 	segments := g.GetNetworkSegments()
 	if len(segments) != 0 {
@@ -152,42 +152,42 @@ func TestGetNetworkSegments_MultipleInterfaces(t *testing.T) {
 	})
 
 	// 3 neighbors on eth0
-	g.AddOrUpdate("machine-b", "host-b", "eth0", "fe80::2", "eth0", "", "", "", 0, true, "")
-	g.AddOrUpdate("machine-c", "host-c", "eth0", "fe80::3", "eth0", "", "", "", 0, true, "")
-	g.AddOrUpdate("machine-d", "host-d", "eth0", "fe80::4", "eth0", "", "", "", 0, true, "")
+	g.AddOrUpdate("machine-b", "host-b", "eth0", "fe80::2", "eth0", "", "", "", 0, nil, true, "")
+	g.AddOrUpdate("machine-c", "host-c", "eth0", "fe80::3", "eth0", "", "", "", 0, nil, true, "")
+	g.AddOrUpdate("machine-d", "host-d", "eth0", "fe80::4", "eth0", "", "", "", 0, nil, true, "")
 
 	// Form a clique on eth0: B, C, D know about each other
 	g.AddOrUpdateIndirectEdge("machine-c", "host-c", "eth0", "fe80::3",
-		"", "", "", 0, "eth0", "fe80::2", "", "", "", 0, "machine-b")
+		"", "", "", 0, nil, "eth0", "fe80::2", "", "", "", 0, nil, "machine-b")
 	g.AddOrUpdateIndirectEdge("machine-d", "host-d", "eth0", "fe80::4",
-		"", "", "", 0, "eth0", "fe80::2", "", "", "", 0, "machine-b")
+		"", "", "", 0, nil, "eth0", "fe80::2", "", "", "", 0, nil, "machine-b")
 	g.AddOrUpdateIndirectEdge("machine-b", "host-b", "eth0", "fe80::2",
-		"", "", "", 0, "eth0", "fe80::3", "", "", "", 0, "machine-c")
+		"", "", "", 0, nil, "eth0", "fe80::3", "", "", "", 0, nil, "machine-c")
 	g.AddOrUpdateIndirectEdge("machine-d", "host-d", "eth0", "fe80::4",
-		"", "", "", 0, "eth0", "fe80::3", "", "", "", 0, "machine-c")
+		"", "", "", 0, nil, "eth0", "fe80::3", "", "", "", 0, nil, "machine-c")
 	g.AddOrUpdateIndirectEdge("machine-b", "host-b", "eth0", "fe80::2",
-		"", "", "", 0, "eth0", "fe80::4", "", "", "", 0, "machine-d")
+		"", "", "", 0, nil, "eth0", "fe80::4", "", "", "", 0, nil, "machine-d")
 	g.AddOrUpdateIndirectEdge("machine-c", "host-c", "eth0", "fe80::3",
-		"", "", "", 0, "eth0", "fe80::4", "", "", "", 0, "machine-d")
+		"", "", "", 0, nil, "eth0", "fe80::4", "", "", "", 0, nil, "machine-d")
 
 	// 3 neighbors on eth1 (different set)
-	g.AddOrUpdate("machine-e", "host-e", "eth0", "fe80::12", "eth1", "", "", "", 0, true, "")
-	g.AddOrUpdate("machine-f", "host-f", "eth0", "fe80::13", "eth1", "", "", "", 0, true, "")
-	g.AddOrUpdate("machine-g", "host-g", "eth0", "fe80::14", "eth1", "", "", "", 0, true, "")
+	g.AddOrUpdate("machine-e", "host-e", "eth0", "fe80::12", "eth1", "", "", "", 0, nil, true, "")
+	g.AddOrUpdate("machine-f", "host-f", "eth0", "fe80::13", "eth1", "", "", "", 0, nil, true, "")
+	g.AddOrUpdate("machine-g", "host-g", "eth0", "fe80::14", "eth1", "", "", "", 0, nil, true, "")
 
 	// Form a clique on eth1: E, F, G know about each other
 	g.AddOrUpdateIndirectEdge("machine-f", "host-f", "eth0", "fe80::13",
-		"", "", "", 0, "eth0", "fe80::12", "", "", "", 0, "machine-e")
+		"", "", "", 0, nil, "eth0", "fe80::12", "", "", "", 0, nil, "machine-e")
 	g.AddOrUpdateIndirectEdge("machine-g", "host-g", "eth0", "fe80::14",
-		"", "", "", 0, "eth0", "fe80::12", "", "", "", 0, "machine-e")
+		"", "", "", 0, nil, "eth0", "fe80::12", "", "", "", 0, nil, "machine-e")
 	g.AddOrUpdateIndirectEdge("machine-e", "host-e", "eth0", "fe80::12",
-		"", "", "", 0, "eth0", "fe80::13", "", "", "", 0, "machine-f")
+		"", "", "", 0, nil, "eth0", "fe80::13", "", "", "", 0, nil, "machine-f")
 	g.AddOrUpdateIndirectEdge("machine-g", "host-g", "eth0", "fe80::14",
-		"", "", "", 0, "eth0", "fe80::13", "", "", "", 0, "machine-f")
+		"", "", "", 0, nil, "eth0", "fe80::13", "", "", "", 0, nil, "machine-f")
 	g.AddOrUpdateIndirectEdge("machine-e", "host-e", "eth0", "fe80::12",
-		"", "", "", 0, "eth0", "fe80::14", "", "", "", 0, "machine-g")
+		"", "", "", 0, nil, "eth0", "fe80::14", "", "", "", 0, nil, "machine-g")
 	g.AddOrUpdateIndirectEdge("machine-f", "host-f", "eth0", "fe80::13",
-		"", "", "", 0, "eth0", "fe80::14", "", "", "", 0, "machine-g")
+		"", "", "", 0, nil, "eth0", "fe80::14", "", "", "", 0, nil, "machine-g")
 
 	segments := g.GetNetworkSegments()
 	if len(segments) != 2 {

@@ -12,12 +12,14 @@ type NeighborData struct {
 	Hostname           string
 	LocalInterface     string
 	LocalAddress       string
+	LocalPrefixes      []string // Global unicast network prefixes
 	LocalRDMADevice    string
 	LocalNodeGUID      string
 	LocalSysImageGUID  string
 	LocalSpeed         int
 	RemoteInterface    string
 	RemoteAddress      string
+	RemotePrefixes     []string // Global unicast network prefixes
 	RemoteRDMADevice   string
 	RemoteNodeGUID     string
 	RemoteSysImageGUID string
@@ -25,11 +27,12 @@ type NeighborData struct {
 }
 
 type InterfaceDetails struct {
-	IPAddress    string
-	RDMADevice   string
-	NodeGUID     string
-	SysImageGUID string
-	Speed        int // Link speed in Mbps
+	IPAddress      string
+	GlobalPrefixes []string // Global unicast network prefixes
+	RDMADevice     string
+	NodeGUID       string
+	SysImageGUID   string
+	Speed          int // Link speed in Mbps
 }
 
 type Node struct {
@@ -86,7 +89,7 @@ func (g *Graph) SetLocalNode(machineID, hostname string, interfaces map[string]I
 	g.changed = true
 }
 
-func (g *Graph) AddOrUpdate(machineID, hostname, remoteIface, sourceIP, receivingIface, rdmaDevice, nodeGUID, sysImageGUID string, remoteSpeed int, direct bool, learnedFrom string) {
+func (g *Graph) AddOrUpdate(machineID, hostname, remoteIface, sourceIP, receivingIface, rdmaDevice, nodeGUID, sysImageGUID string, remoteSpeed int, remotePrefixes []string, direct bool, learnedFrom string) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
@@ -111,14 +114,16 @@ func (g *Graph) AddOrUpdate(machineID, hostname, remoteIface, sourceIP, receivin
 
 	// Update interface details
 	details := InterfaceDetails{
-		IPAddress:    sourceIP,
-		RDMADevice:   rdmaDevice,
-		NodeGUID:     nodeGUID,
-		SysImageGUID: sysImageGUID,
-		Speed:        remoteSpeed,
+		IPAddress:      sourceIP,
+		GlobalPrefixes: remotePrefixes,
+		RDMADevice:     rdmaDevice,
+		NodeGUID:       nodeGUID,
+		SysImageGUID:   sysImageGUID,
+		Speed:          remoteSpeed,
 	}
 
-	if existing, ok := node.Interfaces[remoteIface]; !ok || existing != details {
+	if existing, ok := node.Interfaces[remoteIface]; !ok || existing.IPAddress != details.IPAddress || 
+		existing.RDMADevice != details.RDMADevice || existing.Speed != details.Speed {
 		node.Interfaces[remoteIface] = details
 		g.changed = true
 	}
@@ -189,9 +194,11 @@ func (g *Graph) AddOrUpdateIndirectEdge(
 	neighborIface, neighborAddress,
 	neighborRDMA, neighborNodeGUID, neighborSysImageGUID string,
 	neighborSpeed int,
+	neighborPrefixes []string,
 	intermediateIface, intermediateAddress,
 	intermediateRDMA, intermediateNodeGUID, intermediateSysImageGUID string,
 	intermediateSpeed int,
+	intermediatePrefixes []string,
 	learnedFrom string) {
 
 	g.mu.Lock()
@@ -214,13 +221,15 @@ func (g *Graph) AddOrUpdateIndirectEdge(
 
 	// Update neighbor's interface details
 	neighborDetails := InterfaceDetails{
-		IPAddress:    neighborAddress,
-		RDMADevice:   neighborRDMA,
-		NodeGUID:     neighborNodeGUID,
-		SysImageGUID: neighborSysImageGUID,
-		Speed:        neighborSpeed,
+		IPAddress:      neighborAddress,
+		GlobalPrefixes: neighborPrefixes,
+		RDMADevice:     neighborRDMA,
+		NodeGUID:       neighborNodeGUID,
+		SysImageGUID:   neighborSysImageGUID,
+		Speed:          neighborSpeed,
 	}
-	if existing, ok := node.Interfaces[neighborIface]; !ok || existing != neighborDetails {
+	if existing, ok := node.Interfaces[neighborIface]; !ok || existing.IPAddress != neighborDetails.IPAddress ||
+		existing.RDMADevice != neighborDetails.RDMADevice || existing.Speed != neighborDetails.Speed {
 		node.Interfaces[neighborIface] = neighborDetails
 		g.changed = true
 	}
@@ -229,13 +238,15 @@ func (g *Graph) AddOrUpdateIndirectEdge(
 	intermediateNode, intermediateExists := g.nodes[learnedFrom]
 	if intermediateExists && intermediateIface != "" {
 		intermediateDetails := InterfaceDetails{
-			IPAddress:    intermediateAddress,
-			RDMADevice:   intermediateRDMA,
-			NodeGUID:     intermediateNodeGUID,
-			SysImageGUID: intermediateSysImageGUID,
-			Speed:        intermediateSpeed,
+			IPAddress:      intermediateAddress,
+			GlobalPrefixes: intermediatePrefixes,
+			RDMADevice:     intermediateRDMA,
+			NodeGUID:       intermediateNodeGUID,
+			SysImageGUID:   intermediateSysImageGUID,
+			Speed:          intermediateSpeed,
 		}
-		if existing, ok := intermediateNode.Interfaces[intermediateIface]; !ok || existing != intermediateDetails {
+		if existing, ok := intermediateNode.Interfaces[intermediateIface]; !ok || existing.IPAddress != intermediateDetails.IPAddress ||
+			existing.RDMADevice != intermediateDetails.RDMADevice || existing.Speed != intermediateDetails.Speed {
 			intermediateNode.Interfaces[intermediateIface] = intermediateDetails
 			g.changed = true
 		}
@@ -452,17 +463,28 @@ func (g *Graph) GetDirectNeighbors() []NeighborData {
 						continue
 					}
 
+					// Get prefix information from stored interface details
+					var localPrefixes, remotePrefixes []string
+					if localDetails, ok := g.localNode.Interfaces[edge.LocalInterface]; ok {
+						localPrefixes = localDetails.GlobalPrefixes
+					}
+					if remoteDetails, ok := node.Interfaces[edge.RemoteInterface]; ok {
+						remotePrefixes = remoteDetails.GlobalPrefixes
+					}
+
 					result = append(result, NeighborData{
 						MachineID:          dstID,
 						Hostname:           node.Hostname,
 						LocalInterface:     edge.LocalInterface,
 						LocalAddress:       edge.LocalAddress,
+						LocalPrefixes:      localPrefixes,
 						LocalRDMADevice:    edge.LocalRDMADevice,
 						LocalNodeGUID:      edge.LocalNodeGUID,
 						LocalSysImageGUID:  edge.LocalSysImageGUID,
 						LocalSpeed:         edge.LocalSpeed,
 						RemoteInterface:    edge.RemoteInterface,
 						RemoteAddress:      edge.RemoteAddress,
+						RemotePrefixes:     remotePrefixes,
 						RemoteRDMADevice:   edge.RemoteRDMADevice,
 						RemoteNodeGUID:     edge.RemoteNodeGUID,
 						RemoteSysImageGUID: edge.RemoteSysImageGUID,

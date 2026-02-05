@@ -118,6 +118,9 @@ func (s *Sender) sendOnInterface(ctx context.Context, iface InterfaceInfo) error
 	// Add link speed if available
 	packet.Speed = iface.Speed
 
+	// Add global unicast prefixes if available
+	packet.GlobalPrefixes = iface.GlobalPrefixes
+
 	// Add neighbors if enabled
 	if s.includeNeighbors && s.neighborProvider != nil {
 		neighbors := s.neighborProvider.GetDirectNeighbors()
@@ -128,12 +131,14 @@ func (s *Sender) sendOnInterface(ctx context.Context, iface InterfaceInfo) error
 				Hostname:           n.Hostname,
 				LocalInterface:     n.LocalInterface,
 				LocalAddress:       n.LocalAddress,
+				LocalPrefixes:      n.LocalPrefixes,
 				LocalRDMADevice:    n.LocalRDMADevice,
 				LocalNodeGUID:      n.LocalNodeGUID,
 				LocalSysImageGUID:  n.LocalSysImageGUID,
 				LocalSpeed:         n.LocalSpeed,
 				RemoteInterface:    n.RemoteInterface,
 				RemoteAddress:      n.RemoteAddress,
+				RemotePrefixes:     n.RemotePrefixes,
 				RemoteRDMADevice:   n.RemoteRDMADevice,
 				RemoteNodeGUID:     n.RemoteNodeGUID,
 				RemoteSysImageGUID: n.RemoteSysImageGUID,

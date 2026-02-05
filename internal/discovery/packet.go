@@ -11,32 +11,35 @@ type NeighborInfo struct {
 	MachineID string `json:"machine_id"`
 	Hostname  string `json:"hostname"`
 	// Local side (sender's interface to this neighbor)
-	LocalInterface    string `json:"local_interface"`
-	LocalAddress      string `json:"local_address"`
-	LocalRDMADevice   string `json:"local_rdma_device,omitempty"`
-	LocalNodeGUID     string `json:"local_node_guid,omitempty"`
-	LocalSysImageGUID string `json:"local_sys_image_guid,omitempty"`
-	LocalSpeed        int    `json:"local_speed,omitempty"` // Link speed in Mbps
+	LocalInterface    string   `json:"local_interface"`
+	LocalAddress      string   `json:"local_address"`
+	LocalPrefixes     []string `json:"local_prefixes,omitempty"`     // Global unicast network prefixes
+	LocalRDMADevice   string   `json:"local_rdma_device,omitempty"`
+	LocalNodeGUID     string   `json:"local_node_guid,omitempty"`
+	LocalSysImageGUID string   `json:"local_sys_image_guid,omitempty"`
+	LocalSpeed        int      `json:"local_speed,omitempty"` // Link speed in Mbps
 	// Remote side (neighbor's interface)
-	RemoteInterface    string `json:"remote_interface"`
-	RemoteAddress      string `json:"remote_address"`
-	RemoteRDMADevice   string `json:"remote_rdma_device,omitempty"`
-	RemoteNodeGUID     string `json:"remote_node_guid,omitempty"`
-	RemoteSysImageGUID string `json:"remote_sys_image_guid,omitempty"`
-	RemoteSpeed        int    `json:"remote_speed,omitempty"` // Link speed in Mbps
+	RemoteInterface    string   `json:"remote_interface"`
+	RemoteAddress      string   `json:"remote_address"`
+	RemotePrefixes     []string `json:"remote_prefixes,omitempty"`     // Global unicast network prefixes
+	RemoteRDMADevice   string   `json:"remote_rdma_device,omitempty"`
+	RemoteNodeGUID     string   `json:"remote_node_guid,omitempty"`
+	RemoteSysImageGUID string   `json:"remote_sys_image_guid,omitempty"`
+	RemoteSpeed        int      `json:"remote_speed,omitempty"` // Link speed in Mbps
 }
 
 type Packet struct {
-	Hostname     string         `json:"hostname"`
-	MachineID    string         `json:"machine_id"`
-	Timestamp    int64          `json:"timestamp"`
-	Interface    string         `json:"interface"`
-	SourceIP     string         `json:"source_ip"`
-	RDMADevice   string         `json:"rdma_device,omitempty"`
-	NodeGUID     string         `json:"node_guid,omitempty"`
-	SysImageGUID string         `json:"sys_image_guid,omitempty"`
-	Speed        int            `json:"speed,omitempty"` // Link speed in Mbps
-	Neighbors    []NeighborInfo `json:"neighbors,omitempty"`
+	Hostname       string         `json:"hostname"`
+	MachineID      string         `json:"machine_id"`
+	Timestamp      int64          `json:"timestamp"`
+	Interface      string         `json:"interface"`
+	SourceIP       string         `json:"source_ip"`
+	GlobalPrefixes []string       `json:"global_prefixes,omitempty"` // Global unicast network prefixes on this interface
+	RDMADevice     string         `json:"rdma_device,omitempty"`
+	NodeGUID       string         `json:"node_guid,omitempty"`
+	SysImageGUID   string         `json:"sys_image_guid,omitempty"`
+	Speed          int            `json:"speed,omitempty"` // Link speed in Mbps
+	Neighbors      []NeighborInfo `json:"neighbors,omitempty"`
 }
 
 func NewPacket(iface, sourceIP string) (*Packet, error) {
