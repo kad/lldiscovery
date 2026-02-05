@@ -711,6 +711,10 @@ func (g *Graph) GetNetworkSegments() []NetworkSegment {
 		}
 	}
 
+	// Merge segments that share the same network prefix
+	// This handles cases where different interfaces (em1, br112, etc.) are on the same subnet
+	segments = mergeSegmentsByPrefix(segments)
+
 	return segments
 }
 
@@ -761,6 +765,101 @@ func (g *Graph) getMostCommonPrefix(nodeIDs []string, edgeInfo map[string]*Edge)
 	}
 
 	return mostCommon
+}
+
+// mergeSegmentsByPrefix merges segments that share the same network prefix
+// This handles cases where different interfaces (e.g., em1, br112) are on the same subnet
+func mergeSegmentsByPrefix(segments []NetworkSegment) []NetworkSegment {
+	if len(segments) == 0 {
+		return segments
+	}
+
+	// Group segments by network prefix
+	prefixGroups := make(map[string][]int) // prefix -> list of segment indices
+	
+	for i, seg := range segments {
+		// Only merge segments with non-empty prefixes
+		if seg.NetworkPrefix != "" {
+			prefixGroups[seg.NetworkPrefix] = append(prefixGroups[seg.NetworkPrefix], i)
+		}
+	}
+
+	// Track which segments have been merged
+	merged := make(map[int]bool)
+	var result []NetworkSegment
+	nextID := 0
+
+	// Process each prefix group
+	for prefix, indices := range prefixGroups {
+		if len(indices) == 1 {
+			// Only one segment with this prefix, keep as-is
+			continue
+		}
+
+		// Multiple segments share this prefix - merge them
+		mergedNodes := make(map[string]bool)
+		mergedEdgeInfo := make(map[string]*Edge)
+		interfaceNames := make(map[string]bool)
+
+		for _, idx := range indices {
+			seg := segments[idx]
+			merged[idx] = true
+
+			// Collect all nodes
+			for _, nodeID := range seg.ConnectedNodes {
+				mergedNodes[nodeID] = true
+			}
+
+			// Collect all edges
+			for nodeID, edge := range seg.EdgeInfo {
+				mergedEdgeInfo[nodeID] = edge
+			}
+
+			// Collect interface names
+			interfaceNames[seg.Interface] = true
+		}
+
+		// Convert merged nodes to sorted list
+		var nodeList []string
+		for nodeID := range mergedNodes {
+			nodeList = append(nodeList, nodeID)
+		}
+		sort.Strings(nodeList)
+
+		// Create merged segment
+		// Use first interface name, but could be comma-separated list
+		interfaceList := make([]string, 0, len(interfaceNames))
+		for ifName := range interfaceNames {
+			interfaceList = append(interfaceList, ifName)
+		}
+		sort.Strings(interfaceList)
+		primaryInterface := interfaceList[0]
+
+		result = append(result, NetworkSegment{
+			ID:             fmt.Sprintf("segment_%d", nextID),
+			Interface:      primaryInterface,
+			NetworkPrefix:  prefix,
+			ConnectedNodes: nodeList,
+			EdgeInfo:       mergedEdgeInfo,
+		})
+		nextID++
+	}
+
+	// Add segments that weren't merged (no prefix or unique prefix)
+	for i, seg := range segments {
+		if !merged[i] {
+			result = append(result, NetworkSegment{
+				ID:             fmt.Sprintf("segment_%d", nextID),
+				Interface:      seg.Interface,
+				NetworkPrefix:  seg.NetworkPrefix,
+				ConnectedNodes: seg.ConnectedNodes,
+				EdgeInfo:       seg.EdgeInfo,
+			})
+			nextID++
+		}
+	}
+
+	return result
 }
 
 func (g *Graph) isCompleteIsland(ownerID string, neighborIDs []string) bool {

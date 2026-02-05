@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Fixed
+- **Segment Merging by Network Prefix**: Fixed segment duplication bug where different interfaces (em1, br112, etc.) on the same subnet were incorrectly treated as separate segments. Now merges segments that share the same network prefix, providing accurate topology with one segment per subnet. Handles mixed configurations with physical interfaces, bridges, and VLANs correctly.
 - **Critical**: Local node prefix storage bug - prefixes were not being copied from InterfaceInfo to InterfaceDetails during local node initialization, resulting in null prefixes for the local node in JSON exports. Fixed by adding missing `GlobalPrefixes` field assignment in cmd/lldiscovery/main.go.
 
 ### Added
