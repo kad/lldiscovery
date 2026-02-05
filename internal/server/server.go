@@ -117,9 +117,10 @@ func (s *Server) handleGraphNwdiag(w http.ResponseWriter, r *http.Request) {
 	}
 
 	nodes := s.graph.GetNodes()
+	edges := s.graph.GetEdges()
 	segments := s.graph.GetNetworkSegments()
 
-	nwdiag := export.ExportNwdiag(nodes, segments)
+	nwdiag := export.ExportNwdiag(nodes, edges, segments)
 
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.Write([]byte(nwdiag))

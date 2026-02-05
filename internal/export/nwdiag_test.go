@@ -26,13 +26,14 @@ func TestExportNwdiag(t *testing.T) {
 	g.AddOrUpdate("node3-id", "node3", "eth0", "fe80::300", "eth0", "", "", "", 1000, []string{"192.168.1.0/24"}, true, "")
 
 	nodes := g.GetNodes()
+	edges := g.GetEdges()
 	segments := g.GetNetworkSegments()
 
 	if len(segments) == 0 {
 		t.Fatal("Expected at least one segment to be created")
 	}
 
-	nwdiag := ExportNwdiag(nodes, segments)
+	nwdiag := ExportNwdiag(nodes, edges, segments)
 
 	// Verify output structure
 	if !strings.Contains(nwdiag, "@startuml") {
@@ -67,6 +68,11 @@ func TestExportNwdiag(t *testing.T) {
 	if !strings.Contains(nwdiag, "address") && !strings.Contains(nwdiag, "192_168_1_0_24") {
 		t.Error("Expected network address or identifier in output")
 	}
+	
+	// Verify description exists (should be hostname)
+	if !strings.Contains(nwdiag, "description") {
+		t.Error("Expected description field in output")
+	}
 }
 
 func TestSanitizeHostname(t *testing.T) {
@@ -91,9 +97,10 @@ func TestSanitizeHostname(t *testing.T) {
 
 func TestExportNwdiagEmptyGraph(t *testing.T) {
 	nodes := make(map[string]*graph.Node)
+	edges := make(map[string]map[string][]*graph.Edge)
 	segments := []graph.NetworkSegment{}
 
-	nwdiag := ExportNwdiag(nodes, segments)
+	nwdiag := ExportNwdiag(nodes, edges, segments)
 
 	// Should still produce valid nwdiag structure
 	if !strings.Contains(nwdiag, "@startuml") {

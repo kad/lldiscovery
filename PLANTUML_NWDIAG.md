@@ -1,12 +1,27 @@
 # PlantUML nwdiag Export Feature
 
-**Date**: 2026-02-05 22:05  
+**Date**: 2026-02-05 22:05 (Updated: 2026-02-05 23:30)  
 **Feature**: HTTP endpoint for PlantUML nwdiag format export  
-**Status**: ✅ COMPLETE
+**Status**: ✅ COMPLETE (Enhanced)
 
 ## Overview
 
 Added support for exporting network topology in PlantUML nwdiag format via the `/graph.nwdiag` HTTP endpoint. This provides an alternative visualization format that's particularly well-suited for network diagrams and documentation.
+
+### Recent Enhancements (2026-02-05 23:30)
+
+1. **Hostname in description**: Node descriptions now show actual hostname instead of interface name
+2. **Local node highlighting**: Local node is marked with green color (`#90EE90`)
+3. **RDMA link coloring**: Networks with RDMA devices are colored sky blue (`#87CEEB`)
+4. **Point-to-point networks**: P2P links are exported as peer networks with RDMA indication
+5. **Speed in network address**: Network address includes speed (e.g., "192.168.1.0/24 (10000 Mbps)")
+6. **Speed-based network coloring**:
+   - Gold (#FFD700): 100+ Gbps
+   - Orange (#FFA500): 40+ Gbps
+   - Light green (#90EE90): 10+ Gbps
+   - Light blue (#ADD8E6): 1+ Gbps
+   - Light gray (#D3D3D3): < 1 Gbps
+   - Sky blue (#87CEEB): RDMA (overrides speed color)
 
 ## What is nwdiag?
 
@@ -15,6 +30,7 @@ nwdiag is a network diagram format supported by PlantUML that visualizes network
 - Nodes that span multiple networks
 - IP addresses and interface assignments
 - Network addresses/prefixes
+- Link speeds and RDMA capabilities
 
 ## HTTP Endpoint
 
@@ -56,16 +72,24 @@ curl http://localhost:6469/graph.nwdiag | \
 @startuml
 nwdiag {
   network 192_168_1_0_24 {
-    address = "192.168.1.0/24"
-    server1 [address = "fe80::1", description = "eth0"];
-    server2 [address = "fe80::2", description = "eth0"];
-    server3 [address = "fe80::3", description = "eth0"];
+    address = "192.168.1.0/24 (10000 Mbps)"
+    color = "#90EE90"
+    server1 [address = "fe80::1 (eth0, 1000 Mbps)", description = "server1", color = "#90EE90"];
+    server2 [address = "fe80::2 (eth0, 1000 Mbps)", description = "server2"];
+    server3 [address = "fe80::3 (eth0, 1000 Mbps)", description = "server3"];
   }
   network 10_0_0_0_24 {
-    address = "10.0.0.0/24"
-    server1 [address = "fe80::4", description = "eth1"];
-    server4 [address = "fe80::5", description = "eth0"];
-    server5 [address = "fe80::6", description = "eth0"];
+    address = "10.0.0.0/24 (10000 Mbps)"
+    color = "#90EE90"
+    server1 [address = "fe80::4 (eth1, 10000 Mbps)", description = "server1", color = "#90EE90"];
+    server4 [address = "fe80::5 (eth0, 10000 Mbps)", description = "server4"];
+    server5 [address = "fe80::6 (eth0, 10000 Mbps)", description = "server5"];
+  }
+  network p2p_1 {
+    address = "P2P (100000 Mbps, RDMA)"
+    color = "#87CEEB"
+    server6 [address = "fe80::7 (p2p1, 100000 Mbps, irdma0)", description = "server6"];
+    server7 [address = "fe80::8 (p2p1, 100000 Mbps, irdma0)", description = "server7"];
   }
 }
 @enduml
@@ -73,35 +97,50 @@ nwdiag {
 
 ### Format Details
 
-1. **Network Sections**: One per detected segment
+1. **Network Sections**: One per detected segment or P2P link
    - Network name derived from prefix or interface
-   - `address` field shows network prefix if available
+   - `address` field shows network prefix with speed
+   - `color` field based on speed or RDMA presence
    - Nodes listed with their connections to this network
 
 2. **Node Entries**: Each node on the network
    - Hostname (sanitized for nwdiag identifier rules)
-   - IP address from the interface connected to this network
-   - Interface description showing interface name
+   - `address`: IP address with interface name, speed, and RDMA device
+   - `description`: Actual hostname (not sanitized)
+   - `color`: Green (#90EE90) for local node
 
-3. **Isolated Nodes**: Nodes not in any segment
-   - Listed outside network sections
-   - Shown as standalone entries
+3. **Point-to-Point Networks**: Direct connections between two nodes
+   - Network name: `p2p_N` (incrementing number)
+   - Shows RDMA indicator if applicable
+   - Colored sky blue for RDMA links
+
+4. **Network Colors**:
+   - **Gold** (#FFD700): 100+ Gbps links
+   - **Orange** (#FFA500): 40-100 Gbps links
+   - **Light Green** (#90EE90): 10-40 Gbps links
+   - **Light Blue** (#ADD8E6): 1-10 Gbps links
+   - **Light Gray** (#D3D3D3): < 1 Gbps links
+   - **Sky Blue** (#87CEEB): RDMA links (overrides speed-based color)
 
 ## Implementation
 
-### Files Created
+### Files Modified
 
-1. **internal/export/nwdiag.go** (124 lines)
-   - `ExportNwdiag()`: Main export function
+1. **internal/export/nwdiag.go** (~300 lines, enhanced)
+   - `ExportNwdiag()`: Main export function with edge processing
+   - `getNetworkColor()`: Speed and RDMA-based coloring
+   - `makeEdgeKey()`: Edge deduplication helper
    - `sanitizeHostname()`: Converts hostnames to valid identifiers
+   - Point-to-point network generation for non-segment edges
 
-2. **internal/export/nwdiag_test.go** (74 lines)
-   - Unit tests for nwdiag export
+2. **internal/export/nwdiag_test.go** (enhanced)
+   - Updated tests to pass edges parameter
    - Tests for hostname sanitization
    - Tests for empty graphs
 
 3. **internal/server/server.go** (modified)
    - Added `/graph.nwdiag` endpoint route
+   - Passes edges map to export function
    - Added `handleGraphNwdiag()` handler function
 
 ### Key Features

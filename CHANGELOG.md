@@ -9,6 +9,14 @@
 - **Critical**: Local node prefix storage bug - prefixes were not being copied from InterfaceInfo to InterfaceDetails during local node initialization, resulting in null prefixes for the local node in JSON exports. Fixed by adding missing `GlobalPrefixes` field assignment in cmd/lldiscovery/main.go.
 
 ### Added
+- **PlantUML nwdiag Export Enhancements**: Enhanced `/graph.nwdiag` HTTP endpoint with comprehensive visualization features:
+  - **Hostname descriptions**: Node descriptions now show actual hostname instead of interface name for better readability
+  - **Local node highlighting**: Local node marked with green color for easy identification
+  - **RDMA link coloring**: Networks with RDMA devices colored sky blue (#87CEEB) to highlight high-performance interconnects
+  - **Point-to-point networks**: P2P links exported as peer networks with speed and RDMA indication
+  - **Speed in network address**: Network address includes speed (e.g., "192.168.1.0/24 (10000 Mbps)")
+  - **Speed-based network coloring**: Gold (100+ Gbps), Orange (40+ Gbps), Light Green (10+ Gbps), Light Blue (1+ Gbps), Light Gray (< 1 Gbps)
+  - **Complete node information**: Shows IP address, interface name, speed, and RDMA device in address field
 - **PlantUML nwdiag Export**: Added `/graph.nwdiag` HTTP endpoint for exporting topology in PlantUML nwdiag format. Provides network-centric visualization showing segments horizontally with nodes on multiple networks. Includes IP addresses, interface names, and network prefixes. Ideal for documentation and understanding network segregation.
 - **Edge Prefix Fields**: Added `LocalPrefixes` and `RemotePrefixes` fields to Edge struct for complete network prefix information in JSON exports. EdgeInfo in segments now includes prefix data for both local and remote sides of connections.
 - **Network Prefix-Based Segment Naming**: Segments now display network prefixes instead of interface names when global addresses are available
