@@ -28,66 +28,111 @@ lldiscovery -show-segments
 
 ## How It Works
 
-### Detection Algorithm
+### Detection Algorithm: Maximal Clique Finding
 
-1. **Build Connectivity Graph**: Create a map of all `node:interface` pairs and their connections
-   - Example: `hostA:em1` connects to `hostB:br112`, `hostC:eth0`
-2. **Find Connected Components**: Use BFS (Breadth-First Search) to group mutually-reachable pairs
-   - If A connects to B, and B connects to C, then A, B, C form a component
-3. **Extract Segments**: Components with 3+ unique nodes become segments
+The algorithm uses the **Bron-Kerbosch algorithm** to find maximal cliques in the network topology:
+
+1. **Build Connectivity Graph**: Create a bidirectional map of all `node:interface` pairs
+   - Example: `hostA:em1` ↔ `hostB:br112`, `hostA:em1` ↔ `hostC:eth0`
+
+2. **Find Maximal Cliques**: Use Bron-Kerbosch with pivoting to find all maximal cliques
+   - A **clique** is a set of nodes where ALL pairs are mutually connected
+   - A **maximal clique** cannot be extended by adding more nodes
+   - Pivoting optimization reduces computational complexity
+
+3. **Filter by Size**: Keep only cliques with 3+ unique nodes
+
 4. **Label Segments**: 
    - Single interface name: Use that name (e.g., "em1")
    - Multiple names: Combined label (e.g., "br112+em1+eth0" or "mixed(7)")
+
 5. **Collect Edge Info**: Store connection details for visualization
 
-### Key Insight: Transitive Connectivity
+### Why Cliques?
 
-A network segment is defined by **connectivity patterns**, not interface names:
-- If `A:if1 → B:if2` and `A:if1 → C:if3` and `B:if2 → C:if3` exist
-- Then A, B, C are all on the same segment
-- Even though they use different interface names!
+A network segment (switch/VLAN) is characterized by **all-to-all connectivity**:
+- If nodes A, B, C are connected to the same switch, they can ALL reach each other
+- This forms a **clique**: A↔B, B↔C, A↔C (triangle)
+- **Not just** a connected component (A→B→C doesn't mean A reaches C directly)
+
+### Key Insight: Cliques Represent Physical Segments
+
+```
+If edges exist:
+  A:if1 ↔ B:if2
+  B:if2 ↔ C:if3
+  A:if1 ↔ C:if3
+
+Then A, B, C form a clique (all mutually connected)
+→ Introduce segment node X: A:if1─X, B:if2─X, C:if3─X
+```
 
 This handles real-world scenarios where:
-- Different vendors use different naming (em1, ens3, eth0, p2p1)
-- Hosts have heterogeneous configurations
-- A single switch connects diverse systems
+- Different hosts use different interface names (em1, eth0, br112, p2p1)
+- Transitive discovery reveals indirect connections
+- A single switch connects hosts with heterogeneous configurations
+
+### Algorithm Properties
+
+- **Maximal**: Each clique is as large as possible (can't add more nodes)
+- **Overlapping**: Nodes can participate in multiple segments (different interfaces)
+- **Efficient**: Pivoting reduces search space dramatically
+- **Complete**: Finds ALL maximal cliques in the topology
 
 ### Threshold
 
-- **Minimum nodes**: 3+ unique nodes (not just 3+ interfaces)
-- **Bidirectional**: Both sides of connection contribute to segment
-- **Transitive**: Indirectly connected nodes grouped together
-- **Global detection**: Finds all segments in the entire topology
+- **Minimum nodes**: 3+ unique nodes (smallest interesting clique is a triangle)
+- **Bidirectional**: All connections must be mutual
+- **Transitive aware**: Works with indirect edges from neighbor sharing
+- **Global detection**: Finds all segments across the entire topology
 
 ### Examples of Detected Segments
 
-**Scenario 1: Mixed interface names (same physical switch)**
+**Scenario 1: Simple triangle (minimal clique)**
 ```
-Host A (em1) ←→ Host B (br112)
-Host A (em1) ←→ Host C (eth0)
-Host B (br112) ←→ Host C (eth0)
+Host A (eth0) ↔ Host B (eth0)
+Host B (eth0) ↔ Host C (eth0)
+Host A (eth0) ↔ Host C (eth0)
 Result: ONE segment with 3 nodes: A, B, C
+Label: "eth0"
+```
+
+**Scenario 2: Mixed interface names (same physical switch)**
+```
+Host A (em1) ↔ Host B (br112)
+Host A (em1) ↔ Host C (eth0)
+Host B (br112) ↔ Host C (eth0)
+Result: ONE segment with 3 nodes: A, B, C (all mutually connected)
 Label: "br112+em1+eth0" or "mixed(3)"
 ```
 
-**Scenario 2: Overlapping segments**
+**Scenario 3: Multiple overlapping segments**
 ```
-Segment 1: Hosts A, B, C connected (various interfaces)
-Segment 2: Hosts B, C, D connected (different interfaces)
-Result: Two separate components detected
-  - Component 1: A, B, C
-  - Component 2: B, C, D (if not merged with Segment 1)
-Note: BFS ensures proper component separation
+Segment 1 (eth0): A, B, C form complete triangle
+Segment 2 (eth1): A, D, E form complete triangle
+Result: Two separate cliques
+  - Clique 1: A:eth0, B:eth0, C:eth0
+  - Clique 2: A:eth1, D:eth1, E:eth1
+Note: A participates in both segments (different interfaces)
 ```
 
-**Scenario 3: Large heterogeneous network**
+**Scenario 4: Not a segment (linear chain)**
 ```
-13 hosts all connected through a 10G switch
+Host A ↔ Host B
+Host B ↔ Host C
+Host A ↔ Host C (MISSING)
+Result: NO segment detected (not a clique, just a chain)
+Only detects: A-B pair, B-C pair (each < 3 nodes)
+```
+
+**Scenario 5: Large heterogeneous network**
+```
+8 hosts all mutually connected through a 10G switch
 - Some use em1, em2, em4
 - Some use eth0, eth3
-- Some use p2p1, p3p1, p3p2
+- Some use p2p1, p3p1
 - Some use br112 (bridges)
-Result: ONE segment with 13 nodes
+Result: ONE segment with 8 nodes
 Label: "mixed(8)" (8 different interface names)
 ```
 

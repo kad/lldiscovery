@@ -15,31 +15,22 @@
   - Dramatically improves readability for 100+ host topologies
   - Easier to trace which interfaces connect where
   - Better visual grouping of multi-interface hosts
-- **Connectivity-Based Network Segment Detection**: Detects actual physical network segments
-  - **Transitive connectivity**: Groups hosts based on reachability, not interface names
+- **Clique-Based Network Segment Detection**: Detects actual physical network segments using maximal cliques
+  - **Algorithm**: Bron-Kerbosch with pivoting to find all maximal cliques
+  - **Key insight**: A segment is a CLIQUE (complete subgraph) where ALL nodes mutually connect
+  - **Example**: If A↔B, B↔C, A↔C all exist, they form a segment (triangle clique)
+  - **Not just connected**: Linear chain A→B→C is NOT a segment (A doesn't reach C directly)
   - **Mixed interface support**: Segment can include em1, br112, eth0, p2p1 simultaneously
-  - **Algorithm**: BFS (Breadth-First Search) to find connected components in connectivity graph
-  - **Key insight**: A:if1→B:if2 and A:if1→C:if3 belong to same segment if B:if2→C:if3 exists
+  - **Overlapping segments**: Nodes can participate in multiple segments using different interfaces
   - **Intelligent labels**: Single name or "if1+if2+if3" or "mixed(N)" for heterogeneous segments
-  - **Fewer segments**: Detects actual network infrastructure, not interface name groups
-  - **Better edge hiding**: More redundant edges hidden, cleaner visualization
-  - Examples:
-    * 13 hosts on same switch with mixed interfaces (em1, br112, eth0) → ONE segment
-    * Previously: 9 segments (em1, em4, br112, eth0, eth3, etc.) → Now: 2-3 actual segments
-    * Real topology accurately represented
+  - **Transitive discovery**: Works with indirect edges learned from neighbor sharing
+  - **Fewer false positives**: Only detects actual network segments (switches/VLANs)
+  - **Examples**:
+    * 8 hosts all mutually connected on same switch → ONE segment
+    * Node A on eth0 segment + eth1 segment → TWO separate cliques detected
+    * Linear topology A-B-C without full mesh → NO segment (not a clique)
+    * Previously: Connected components gave false segments → Now: Only true cliques
   - Handles heterogeneous networks with diverse interface naming conventions
-- **Enhanced Network Segment Detection**: Discovers ALL segments in topology
-  - **Overlapping segments**: Nodes can participate in multiple segments (e.g., br112 + eth0)
-  - **Global detection**: Finds segments even when local node doesn't participate
-  - **Indirect edges**: Detects segments visible through learned connectivity from neighbors
-  - Scans entire graph (not just local node's edges) for comprehensive detection
-  - Groups nodes by interface name across all hosts
-  - Threshold: 3+ nodes using same interface name
-  - Examples:
-    * Local node on em4 connects to 12 others → em4 segment
-    * Hosts A,B,C on br112 and B,C,D on eth0 → two overlapping segments detected
-    * Remote hosts connected on p2p1 → p2p1 segment found via indirect edges
-  - More accurate representation of actual network topology
 - **Network Segment Detection**: Identify and visualize shared network segments (switches/VLANs)
   - Detects when a host can reach 3+ neighbors on the same interface
   - Segments show interface name, node count, and RDMA capability

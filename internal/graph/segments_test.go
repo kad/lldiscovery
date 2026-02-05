@@ -24,7 +24,7 @@ func TestGetNetworkSegments_NoSegments(t *testing.T) {
 }
 
 // TestGetNetworkSegments_ThreeNeighbors verifies that a segment is detected
-// when 3 neighbors are reachable on the same interface.
+// when nodes form a clique (all-to-all connectivity) on the same network.
 func TestGetNetworkSegments_ThreeNeighbors(t *testing.T) {
 	g := New()
 
@@ -33,10 +33,38 @@ func TestGetNetworkSegments_ThreeNeighbors(t *testing.T) {
 		"eth0": {IPAddress: "fe80::1"},
 	})
 
-	// Three neighbors on eth0
+	// Direct connections from A to B, C, D
 	g.AddOrUpdate("machine-b", "host-b", "eth0", "fe80::2", "eth0", "", "", "", 0, true, "")
 	g.AddOrUpdate("machine-c", "host-c", "eth0", "fe80::3", "eth0", "", "", "", 0, true, "")
 	g.AddOrUpdate("machine-d", "host-d", "eth0", "fe80::4", "eth0", "", "", "", 0, true, "")
+
+	// With transitive discovery, A learns that B, C, D are also connected to each other
+	// This forms a clique: A-B-C-D all mutually connected on eth0
+	// Simulate indirect edges: B->C, B->D, C->B, C->D, D->B, D->C
+	g.AddOrUpdateIndirectEdge("machine-c", "host-c", "eth0", "fe80::3", 
+		"", "", "", 0,  // neighbor RDMA info
+		"eth0", "fe80::2", "", "", "", 0,  // intermediate (B) info
+		"machine-b")
+	g.AddOrUpdateIndirectEdge("machine-d", "host-d", "eth0", "fe80::4",
+		"", "", "", 0,
+		"eth0", "fe80::2", "", "", "", 0,
+		"machine-b")
+	g.AddOrUpdateIndirectEdge("machine-b", "host-b", "eth0", "fe80::2",
+		"", "", "", 0,
+		"eth0", "fe80::3", "", "", "", 0,
+		"machine-c")
+	g.AddOrUpdateIndirectEdge("machine-d", "host-d", "eth0", "fe80::4",
+		"", "", "", 0,
+		"eth0", "fe80::3", "", "", "", 0,
+		"machine-c")
+	g.AddOrUpdateIndirectEdge("machine-b", "host-b", "eth0", "fe80::2",
+		"", "", "", 0,
+		"eth0", "fe80::4", "", "", "", 0,
+		"machine-d")
+	g.AddOrUpdateIndirectEdge("machine-c", "host-c", "eth0", "fe80::3",
+		"", "", "", 0,
+		"eth0", "fe80::4", "", "", "", 0,
+		"machine-d")
 
 	segments := g.GetNetworkSegments()
 	if len(segments) != 1 {
@@ -46,7 +74,7 @@ func TestGetNetworkSegments_ThreeNeighbors(t *testing.T) {
 	seg := segments[0]
 	// Should include local + 3 neighbors = 4 total
 	if len(seg.ConnectedNodes) != 4 {
-		t.Errorf("expected 4 nodes in segment, got %d", len(seg.ConnectedNodes))
+		t.Errorf("expected 4 nodes in segment, got %d: %v", len(seg.ConnectedNodes), seg.ConnectedNodes)
 	}
 
 	// Check that local node is included
@@ -63,7 +91,7 @@ func TestGetNetworkSegments_ThreeNeighbors(t *testing.T) {
 }
 
 // TestGetNetworkSegments_BelowThreshold verifies that segments with
-// fewer than 3 total nodes are not detected.
+// exactly 3 total nodes forming a clique ARE detected.
 func TestGetNetworkSegments_BelowThreshold(t *testing.T) {
 	g := New()
 
@@ -71,12 +99,22 @@ func TestGetNetworkSegments_BelowThreshold(t *testing.T) {
 		"eth0": {IPAddress: "fe80::1"},
 	})
 
-	// Only 2 neighbors on eth0: total of 3 nodes (local + 2), which IS a segment
+	// 2 neighbors on eth0: total of 3 nodes (local + 2), forming a triangle clique
 	g.AddOrUpdate("machine-b", "host-b", "eth0", "fe80::2", "eth0", "", "", "", 0, true, "")
 	g.AddOrUpdate("machine-c", "host-c", "eth0", "fe80::3", "eth0", "", "", "", 0, true, "")
 
+	// With transitive discovery: B and C also know about each other
+	g.AddOrUpdateIndirectEdge("machine-c", "host-c", "eth0", "fe80::3",
+		"", "", "", 0,
+		"eth0", "fe80::2", "", "", "", 0,
+		"machine-b")
+	g.AddOrUpdateIndirectEdge("machine-b", "host-b", "eth0", "fe80::2",
+		"", "", "", 0,
+		"eth0", "fe80::3", "", "", "", 0,
+		"machine-c")
+
 	segments := g.GetNetworkSegments()
-	// With 3 total nodes on eth0, this forms a segment
+	// With 3 total nodes on eth0 forming a clique, this is a segment
 	if len(segments) != 1 {
 		t.Errorf("expected 1 segment (3 nodes on eth0), got %d", len(segments))
 	}
@@ -118,10 +156,38 @@ func TestGetNetworkSegments_MultipleInterfaces(t *testing.T) {
 	g.AddOrUpdate("machine-c", "host-c", "eth0", "fe80::3", "eth0", "", "", "", 0, true, "")
 	g.AddOrUpdate("machine-d", "host-d", "eth0", "fe80::4", "eth0", "", "", "", 0, true, "")
 
-	// 3 neighbors on eth1
+	// Form a clique on eth0: B, C, D know about each other
+	g.AddOrUpdateIndirectEdge("machine-c", "host-c", "eth0", "fe80::3",
+		"", "", "", 0, "eth0", "fe80::2", "", "", "", 0, "machine-b")
+	g.AddOrUpdateIndirectEdge("machine-d", "host-d", "eth0", "fe80::4",
+		"", "", "", 0, "eth0", "fe80::2", "", "", "", 0, "machine-b")
+	g.AddOrUpdateIndirectEdge("machine-b", "host-b", "eth0", "fe80::2",
+		"", "", "", 0, "eth0", "fe80::3", "", "", "", 0, "machine-c")
+	g.AddOrUpdateIndirectEdge("machine-d", "host-d", "eth0", "fe80::4",
+		"", "", "", 0, "eth0", "fe80::3", "", "", "", 0, "machine-c")
+	g.AddOrUpdateIndirectEdge("machine-b", "host-b", "eth0", "fe80::2",
+		"", "", "", 0, "eth0", "fe80::4", "", "", "", 0, "machine-d")
+	g.AddOrUpdateIndirectEdge("machine-c", "host-c", "eth0", "fe80::3",
+		"", "", "", 0, "eth0", "fe80::4", "", "", "", 0, "machine-d")
+
+	// 3 neighbors on eth1 (different set)
 	g.AddOrUpdate("machine-e", "host-e", "eth0", "fe80::12", "eth1", "", "", "", 0, true, "")
 	g.AddOrUpdate("machine-f", "host-f", "eth0", "fe80::13", "eth1", "", "", "", 0, true, "")
 	g.AddOrUpdate("machine-g", "host-g", "eth0", "fe80::14", "eth1", "", "", "", 0, true, "")
+
+	// Form a clique on eth1: E, F, G know about each other
+	g.AddOrUpdateIndirectEdge("machine-f", "host-f", "eth0", "fe80::13",
+		"", "", "", 0, "eth0", "fe80::12", "", "", "", 0, "machine-e")
+	g.AddOrUpdateIndirectEdge("machine-g", "host-g", "eth0", "fe80::14",
+		"", "", "", 0, "eth0", "fe80::12", "", "", "", 0, "machine-e")
+	g.AddOrUpdateIndirectEdge("machine-e", "host-e", "eth0", "fe80::12",
+		"", "", "", 0, "eth0", "fe80::13", "", "", "", 0, "machine-f")
+	g.AddOrUpdateIndirectEdge("machine-g", "host-g", "eth0", "fe80::14",
+		"", "", "", 0, "eth0", "fe80::13", "", "", "", 0, "machine-f")
+	g.AddOrUpdateIndirectEdge("machine-e", "host-e", "eth0", "fe80::12",
+		"", "", "", 0, "eth0", "fe80::14", "", "", "", 0, "machine-g")
+	g.AddOrUpdateIndirectEdge("machine-f", "host-f", "eth0", "fe80::13",
+		"", "", "", 0, "eth0", "fe80::14", "", "", "", 0, "machine-g")
 
 	segments := g.GetNetworkSegments()
 	if len(segments) != 2 {
@@ -131,7 +197,7 @@ func TestGetNetworkSegments_MultipleInterfaces(t *testing.T) {
 	// Each segment should have local + 3 neighbors = 4 nodes
 	for _, seg := range segments {
 		if len(seg.ConnectedNodes) != 4 {
-			t.Errorf("expected 4 nodes in segment, got %d", len(seg.ConnectedNodes))
+			t.Errorf("expected 4 nodes in segment %s, got %d", seg.ID, len(seg.ConnectedNodes))
 		}
 	}
 }
