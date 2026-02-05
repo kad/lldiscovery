@@ -485,7 +485,8 @@ type NetworkSegment struct {
 }
 
 // GetNetworkSegments finds groups of nodes connected to shared network segments
-// A segment is detected when the local node can reach 3+ other nodes on the same LOCAL interface
+// GetNetworkSegments finds groups of nodes connected to shared network segments
+// Detects both local segments (where local node participates) and remote segments (visible via indirect discovery)
 func (g *Graph) GetNetworkSegments() []NetworkSegment {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
@@ -498,54 +499,122 @@ func (g *Graph) GetNetworkSegments() []NetworkSegment {
 	}
 
 	localID := g.localNode.MachineID
-
-	// Get all edges from local node
-	localEdges, ok := g.edges[localID]
-	if !ok {
-		return segments
-	}
-
-	// Group remote nodes by LOCAL interface
-	// Map: local interface name -> list of remote node IDs
-	interfaceGroups := make(map[string]map[string]*Edge) // [local_iface][remote_node] = edge
-
-	for remoteID, edgeList := range localEdges {
-		for _, edge := range edgeList {
-			localIface := edge.LocalInterface
-			
-			if interfaceGroups[localIface] == nil {
-				interfaceGroups[localIface] = make(map[string]*Edge)
-			}
-			
-			// Prefer direct edges over indirect
-			if existing, ok := interfaceGroups[localIface][remoteID]; !ok || (!existing.Direct && edge.Direct) {
-				interfaceGroups[localIface][remoteID] = edge
-			}
-		}
-	}
-
-	// Create segments for interfaces with 3+ nodes
 	segmentID := 0
-	for localIface, remoteNodes := range interfaceGroups {
-		// Need at least 3 nodes (2 remote + 1 local) to be a shared network
-		if len(remoteNodes) < 2 {
-			continue
+
+	// Part 1: Detect segments from LOCAL node's perspective
+	// Group remote nodes by which LOCAL interface reaches them
+	if localEdges, ok := g.edges[localID]; ok {
+		interfaceGroups := make(map[string]map[string]*Edge) // [local_iface][remote_node] = edge
+
+		for remoteID, edgeList := range localEdges {
+			for _, edge := range edgeList {
+				localIface := edge.LocalInterface
+				
+				if interfaceGroups[localIface] == nil {
+					interfaceGroups[localIface] = make(map[string]*Edge)
+				}
+				
+				// Prefer direct edges over indirect
+				if existing, ok := interfaceGroups[localIface][remoteID]; !ok || (!existing.Direct && edge.Direct) {
+					interfaceGroups[localIface][remoteID] = edge
+				}
+			}
 		}
 
-		// Collect node IDs (local + all remotes)
-		nodeIDs := []string{localID}
+		// Create segments for local interfaces with 2+ remote nodes
+		for localIface, remoteNodes := range interfaceGroups {
+			if len(remoteNodes) < 2 {
+				continue
+			}
+
+			// Collect node IDs (local + all remotes)
+			nodeIDs := []string{localID}
+			edgeInfo := make(map[string]*Edge)
+			
+			for remoteID, edge := range remoteNodes {
+				nodeIDs = append(nodeIDs, remoteID)
+				edgeInfo[remoteID] = edge
+			}
+			
+			sort.Strings(nodeIDs)
+
+			segments = append(segments, NetworkSegment{
+				ID:             fmt.Sprintf("segment_%d", segmentID),
+				Interface:      localIface,
+				ConnectedNodes: nodeIDs,
+				EdgeInfo:       edgeInfo,
+			})
+			segmentID++
+		}
+	}
+
+	// Part 2: Detect REMOTE segments (VLANs where local node is not a member)
+	// Look for groups of nodes connected on same interface name via indirect edges
+	// Skip interfaces that local node already has segments on
+	localInterfaces := make(map[string]bool)
+	for _, seg := range segments {
+		localInterfaces[seg.Interface] = true
+	}
+
+	remoteInterfaceGroups := make(map[string]map[string]*Edge) // [interface_name][node_id] = edge
+
+	for srcID, dests := range g.edges {
+		if srcID == localID {
+			continue // Skip local node (already handled above)
+		}
+
+		for dstID, edgeList := range dests {
+			if dstID == localID {
+				continue // Skip edges to local node
+			}
+
+			for _, edge := range edgeList {
+				// Only consider edges where both sides use the SAME interface name
+				// This indicates they're on the same VLAN
+				if edge.LocalInterface == edge.RemoteInterface {
+					ifaceName := edge.LocalInterface
+					
+					// Skip if local node already has a segment on this interface
+					if localInterfaces[ifaceName] {
+						continue
+					}
+					
+					if remoteInterfaceGroups[ifaceName] == nil {
+						remoteInterfaceGroups[ifaceName] = make(map[string]*Edge)
+					}
+					
+					// Add both source and destination to this interface group
+					if _, exists := remoteInterfaceGroups[ifaceName][srcID]; !exists {
+						remoteInterfaceGroups[ifaceName][srcID] = edge
+					}
+					if _, exists := remoteInterfaceGroups[ifaceName][dstID]; !exists {
+						remoteInterfaceGroups[ifaceName][dstID] = edge
+					}
+				}
+			}
+		}
+	}
+
+	// Create segments for remote VLANs with 3+ nodes
+	for ifaceName, nodeEdges := range remoteInterfaceGroups {
+		if len(nodeEdges) < 3 {
+			continue // Need at least 3 nodes for a segment
+		}
+
+		// Collect node IDs
+		nodeIDs := make([]string, 0, len(nodeEdges))
 		edgeInfo := make(map[string]*Edge)
 		
-		for remoteID, edge := range remoteNodes {
-			nodeIDs = append(nodeIDs, remoteID)
-			edgeInfo[remoteID] = edge
+		for nodeID, edge := range nodeEdges {
+			nodeIDs = append(nodeIDs, nodeID)
+			edgeInfo[nodeID] = edge
 		}
 		
 		sort.Strings(nodeIDs)
 
 		segments = append(segments, NetworkSegment{
 			ID:             fmt.Sprintf("segment_%d", segmentID),
-			Interface:      localIface,
+			Interface:      ifaceName,
 			ConnectedNodes: nodeIDs,
 			EdgeInfo:       edgeInfo,
 		})
