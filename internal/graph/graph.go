@@ -596,29 +596,80 @@ func (g *Graph) GetNetworkSegments() []NetworkSegment {
 	}
 
 	// Create segments for remote VLANs with 3+ nodes
+	// BUT: verify nodes are actually connected (not just using same interface name)
 	for ifaceName, nodeEdges := range remoteInterfaceGroups {
 		if len(nodeEdges) < 3 {
 			continue // Need at least 3 nodes for a segment
 		}
 
-		// Collect node IDs
-		nodeIDs := make([]string, 0, len(nodeEdges))
-		edgeInfo := make(map[string]*Edge)
-		
-		for nodeID, edge := range nodeEdges {
-			nodeIDs = append(nodeIDs, nodeID)
-			edgeInfo[nodeID] = edge
+		// Build connectivity graph for this interface
+		// Only include edges on this specific interface
+		connectivity := make(map[string]map[string]bool)
+		for srcID, dests := range g.edges {
+			for dstID, edgeList := range dests {
+				for _, edge := range edgeList {
+					if edge.LocalInterface == ifaceName && edge.RemoteInterface == ifaceName {
+						// Both sides use this interface
+						if connectivity[srcID] == nil {
+							connectivity[srcID] = make(map[string]bool)
+						}
+						connectivity[srcID][dstID] = true
+					}
+				}
+			}
 		}
-		
-		sort.Strings(nodeIDs)
 
-		segments = append(segments, NetworkSegment{
-			ID:             fmt.Sprintf("segment_%d", segmentID),
-			Interface:      ifaceName,
-			ConnectedNodes: nodeIDs,
-			EdgeInfo:       edgeInfo,
-		})
-		segmentID++
+		// Find connected components within this interface group using BFS
+		visited := make(map[string]bool)
+		for startNode := range nodeEdges {
+			if visited[startNode] {
+				continue
+			}
+
+			// BFS to find all nodes in this component
+			component := []string{}
+			queue := []string{startNode}
+			visited[startNode] = true
+
+			for len(queue) > 0 {
+				current := queue[0]
+				queue = queue[1:]
+				component = append(component, current)
+
+				// Add connected neighbors (only those in nodeEdges)
+				if neighbors, ok := connectivity[current]; ok {
+					for neighbor := range neighbors {
+						if _, inGroup := nodeEdges[neighbor]; inGroup && !visited[neighbor] {
+							visited[neighbor] = true
+							queue = append(queue, neighbor)
+						}
+					}
+				}
+			}
+
+			// Create segment if this component has 3+ nodes
+			if len(component) < 3 {
+				continue
+			}
+
+			// Collect edge info for nodes in this component
+			componentEdgeInfo := make(map[string]*Edge)
+			for _, nodeID := range component {
+				if edge, ok := nodeEdges[nodeID]; ok {
+					componentEdgeInfo[nodeID] = edge
+				}
+			}
+
+			sort.Strings(component)
+
+			segments = append(segments, NetworkSegment{
+				ID:             fmt.Sprintf("segment_%d", segmentID),
+				Interface:      ifaceName,
+				ConnectedNodes: component,
+				EdgeInfo:       componentEdgeInfo,
+			})
+			segmentID++
+		}
 	}
 
 	return segments
