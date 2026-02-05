@@ -12,17 +12,19 @@ import (
 )
 
 type Server struct {
-	addr   string
-	graph  *graph.Graph
-	logger *slog.Logger
-	srv    *http.Server
+	addr         string
+	graph        *graph.Graph
+	logger       *slog.Logger
+	showSegments bool
+	srv          *http.Server
 }
 
-func New(addr string, g *graph.Graph, logger *slog.Logger) *Server {
+func New(addr string, g *graph.Graph, logger *slog.Logger, showSegments bool) *Server {
 	s := &Server{
-		addr:   addr,
-		graph:  g,
-		logger: logger,
+		addr:         addr,
+		graph:        g,
+		logger:       logger,
+		showSegments: showSegments,
 	}
 
 	mux := http.NewServeMux()
@@ -78,7 +80,14 @@ func (s *Server) handleGraphDOT(w http.ResponseWriter, r *http.Request) {
 
 	nodes := s.graph.GetNodes()
 	edges := s.graph.GetEdges()
-	dot := export.GenerateDOT(nodes, edges)
+
+	var dot string
+	if s.showSegments {
+		segments := s.graph.GetNetworkSegments()
+		dot = export.GenerateDOTWithSegments(nodes, edges, segments)
+	} else {
+		dot = export.GenerateDOT(nodes, edges)
+	}
 
 	w.Header().Set("Content-Type", "text/vnd.graphviz")
 	w.Write([]byte(dot))

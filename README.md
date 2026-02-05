@@ -446,3 +446,49 @@ MIT
 ## Contributing
 
 Issues and pull requests welcome!
+
+## Network Segment Detection
+
+When multiple hosts are connected through the same network segment (switch/VLAN), the daemon can detect and visualize these shared connectivity patterns. Enable this feature with:
+
+```bash
+lldiscovery -show-segments
+```
+
+Or in configuration:
+```json
+{
+  "show_segments": true
+}
+```
+
+### How It Works
+
+- **Detection**: When 3+ hosts are reachable on the same interface, they're identified as a network segment
+- **Visualization**: Segments appear as ellipse nodes in DOT graphs (vs. box nodes for hosts)
+- **Island Verification**: Segments marked with `*` indicate complete islands where all hosts can see each other
+- **Default**: Disabled (opt-in feature)
+
+### Example
+
+For a topology where host-a, host-b, host-c, and host-d are all connected to the same switch via eth0:
+
+Without `-show-segments`:
+```
+host-a -- host-b
+host-a -- host-c
+host-a -- host-d
+```
+
+With `-show-segments`:
+```
+        segment_eth0
+       /      |      \
+   host-a  host-b  host-c  host-d
+```
+
+The segment node is styled with:
+- Shape: ellipse (hosts are boxes)
+- Color: light yellow fill
+- Label: `segment: <interface>` (marked with `*` if complete island)
+

@@ -20,6 +20,7 @@ type Config struct {
 	HTTPAddress      string          `json:"http_address"`
 	LogLevel         string          `json:"log_level"`
 	IncludeNeighbors bool            `json:"include_neighbors"`
+	ShowSegments     bool            `json:"show_segments"`
 	Telemetry        TelemetryConfig `json:"telemetry"`
 }
 
@@ -44,6 +45,7 @@ func Default() *Config {
 		HTTPAddress:      ":8080",
 		LogLevel:         "info",
 		IncludeNeighbors: false,
+		ShowSegments:     false,
 		Telemetry: TelemetryConfig{
 			Enabled:       false,
 			Endpoint:      "grpc://localhost:4317",

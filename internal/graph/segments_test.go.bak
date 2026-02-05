@@ -1,0 +1,262 @@
+package graph
+
+import (
+	"testing"
+)
+
+// TestGetNetworkSegments_NoSegments verifies that no segments are detected
+// when nodes are connected in pairs (no shared network segments).
+func TestGetNetworkSegments_NoSegments(t *testing.T) {
+	g := New()
+
+	// Local node on eth0
+	g.SetLocalNode("machine-a", "host-a", map[string]InterfaceDetails{
+		"eth0": {IPAddress: "fe80::1"},
+	})
+
+	// Single remote neighbor on eth0
+	g.AddOrUpdate("machine-b", "host-b", "eth0", "fe80::2", "eth0", "", "", "", 0, true, "")
+
+	segments := g.GetNetworkSegments()
+	if len(segments) != 0 {
+		t.Errorf("expected no segments, got %d", len(segments))
+	}
+}
+
+// TestGetNetworkSegments_ThreeNodes verifies that a segment is detected
+// when 3 nodes are connected on the same interface.
+func TestGetNetworkSegments_ThreeNodes(t *testing.T) {
+	g := New()
+
+	// Local node on eth0
+	g.SetLocalNode("machine-a", "host-a", map[string]InterfaceDetails{
+		"eth0": {IPAddress: "fe80::1"},
+	})
+
+	// Three neighbors on eth0 (local + 3 = 4 total, above threshold of 3)
+	g.AddOrUpdate("machine-b", "host-b", "eth0", "fe80::2", "eth0", "", "", "", 0, true, "")
+	g.AddOrUpdate("machine-c", "host-c", "eth0", "fe80::3", "eth0", "", "", "", 0, true, "")
+	g.AddOrUpdate("machine-d", "host-d", "eth0", "fe80::4", "eth0", "", "", "", 0, true, "")
+
+	segments := g.GetNetworkSegments()
+	if len(segments) != 1 {
+		t.Fatalf("expected 1 segment, got %d", len(segments))
+	}
+
+	seg := segments[0]
+	if seg.Interface != "eth0" {
+		t.Errorf("expected interface eth0, got %s", seg.Interface)
+	}
+	if len(seg.Nodes) != 4 {
+		t.Errorf("expected 4 nodes in segment, got %d", len(seg.Nodes))
+	}
+	if seg.IsCompleteIsland {
+		t.Error("expected IsCompleteIsland=false (B, C, D don't see each other)")
+	}
+}
+
+// TestGetNetworkSegments_CompleteIsland verifies that a complete island
+// (all nodes see each other) is correctly identified.
+func TestGetNetworkSegments_CompleteIsland(t *testing.T) {
+	g := New()
+
+	// Local node
+	g.SetLocalNode("machine-a", "host-a", map[string]InterfaceDetails{
+		"eth0": {IPAddress: "fe80::1"},
+	})
+
+	// Three nodes, all connected to each other
+	// A sees B, C, D on eth0
+	g.AddOrUpdate("machine-b", "host-b", "eth0", "fe80::2", "eth0", "", "", "", 0, true, "")
+	g.AddOrUpdate("machine-c", "host-c", "eth0", "fe80::3", "eth0", "", "", "", 0, true, "")
+	g.AddOrUpdate("machine-d", "host-d", "eth0", "fe80::4", "eth0", "", "", "", 0, true, "")
+	
+	// B sees C and D (creates complete mesh with A)
+	g.AddOrUpdateIndirectEdge("machine-b", "machine-c", "eth0", "eth0", "fe80::2", "fe80::3", "", "", "", 0, "machine-a")
+	g.AddOrUpdateIndirectEdge("machine-b", "machine-d", "eth0", "eth0", "fe80::2", "fe80::4", "", "", "", 0, "machine-a")
+	
+	// C sees D
+	g.AddOrUpdateIndirectEdge("machine-c", "machine-d", "eth0", "eth0", "fe80::3", "fe80::4", "", "", "", 0, "machine-a")
+
+	segments := g.GetNetworkSegments()
+	if len(segments) != 1 {
+		t.Fatalf("expected 1 segment, got %d", len(segments))
+	}
+
+	seg := segments[0]
+	if !seg.IsCompleteIsland {
+		t.Error("expected IsCompleteIsland=true (all nodes see each other)")
+	}
+	if len(seg.Nodes) != 4 {
+		t.Errorf("expected 4 nodes, got %d", len(seg.Nodes))
+	}
+}
+
+// TestGetNetworkSegments_MultipleInterfaces verifies that segments
+// on different interfaces are detected independently.
+func TestGetNetworkSegments_MultipleInterfaces(t *testing.T) {
+	g := New()
+
+	g.SetLocalNode("machine-a", "host-a", map[string]InterfaceDetails{
+		"eth0": {IPAddress: "fe80::1"},
+		"eth1": {IPAddress: "fe80::11"},
+	})
+
+	// 3 nodes on eth0
+	g.AddOrUpdate("machine-b", "host-b", "eth0", "fe80::2", "eth0", "", "", "", 0, true, "")
+	g.AddOrUpdate("machine-c", "host-c", "eth0", "fe80::3", "eth0", "", "", "", 0, true, "")
+	g.AddOrUpdate("machine-d", "host-d", "eth0", "fe80::4", "eth0", "", "", "", 0, true, "")
+
+	// 3 nodes on eth1
+	g.AddOrUpdate("machine-e", "host-e", "eth0", "fe80::12", "eth1", "", "", "", 0, true, "")
+	g.AddOrUpdate("machine-f", "host-f", "eth0", "fe80::13", "eth1", "", "", "", 0, true, "")
+	g.AddOrUpdate("machine-g", "host-g", "eth0", "fe80::14", "eth1", "", "", "", 0, true, "")
+
+	segments := g.GetNetworkSegments()
+	if len(segments) != 2 {
+		t.Fatalf("expected 2 segments, got %d", len(segments))
+	}
+
+	// Check that we have one segment per interface
+	interfaces := make(map[string]bool)
+	for _, seg := range segments {
+		interfaces[seg.Interface] = true
+		if len(seg.Nodes) != 4 { // local + 3 neighbors
+			t.Errorf("expected 4 nodes in segment %s, got %d", seg.Interface, len(seg.Nodes))
+		}
+	}
+
+	if !interfaces["eth0"] || !interfaces["eth1"] {
+		t.Error("expected segments on both eth0 and eth1")
+	}
+}
+
+// TestGetNetworkSegments_IncludesIndirectEdges verifies that indirect
+// edges (learned from neighbors) are counted for segment detection.
+func TestGetNetworkSegments_IncludesIndirectEdges(t *testing.T) {
+	g := New()
+
+	g.SetLocalNode("machine-a", "host-a", map[string]InterfaceDetails{
+		"eth0": {IPAddress: "fe80::1"},
+	})
+
+	// Direct neighbors
+	g.AddOrUpdate("machine-b", "host-b", "eth0", "fe80::2", "eth0", "", "", "", 0, true, "")
+	g.AddOrUpdate("machine-c", "host-c", "eth0", "fe80::3", "eth0", "", "", "", 0, true, "")
+
+	// Indirect node (learned via B) - should still count for segment detection
+	g.AddOrUpdateIndirectEdge("machine-a", "machine-d", "eth0", "eth0", "fe80::1", "fe80::4", "", "", "", 0, "machine-b")
+
+	segments := g.GetNetworkSegments()
+	if len(segments) != 1 {
+		t.Fatalf("expected 1 segment, got %d", len(segments))
+	}
+
+	seg := segments[0]
+	// Should include local + 2 direct + 1 indirect = 4 nodes
+	if len(seg.Nodes) != 4 {
+		t.Errorf("expected 4 nodes (including indirect), got %d", len(seg.Nodes))
+	}
+}
+
+// TestGetNetworkSegments_BelowThreshold verifies that segments with
+// fewer than 3 neighbors are not detected.
+func TestGetNetworkSegments_BelowThreshold(t *testing.T) {
+	g := New()
+
+	g.SetLocalNode("machine-a", "host-a", map[string]InterfaceDetails{
+		"eth0": {IPAddress: "fe80::1"},
+	})
+
+	// Only 2 neighbors on eth0 (local + 2 = 3 total, at threshold but needs 3+ neighbors)
+	g.AddOrUpdate("machine-b", "host-b", "eth0", "fe80::2", "eth0", "", "", "", 0, true, "")
+	g.AddOrUpdate("machine-c", "host-c", "eth0", "fe80::3", "eth0", "", "", "", 0, true, "")
+
+	segments := g.GetNetworkSegments()
+	if len(segments) != 0 {
+		t.Errorf("expected no segments (below threshold), got %d", len(segments))
+	}
+}
+
+// TestIsCompleteIsland_EmptySet verifies that an empty node set
+// is not considered a complete island.
+func TestIsCompleteIsland_EmptySet(t *testing.T) {
+	g := New()
+	result := g.isCompleteIsland([]string{})
+	if result {
+		t.Error("expected false for empty node set")
+	}
+}
+
+// TestIsCompleteIsland_SingleNode verifies that a single node
+// is considered a complete island (trivially).
+func TestIsCompleteIsland_SingleNode(t *testing.T) {
+	g := New()
+	
+	g.SetLocalNode("machine-a", "host-a", map[string]InterfaceDetails{
+		"eth0": {IPAddress: "fe80::1"},
+	})
+	
+	result := g.isCompleteIsland([]string{"machine-a"})
+	if !result {
+		t.Error("expected true for single node")
+	}
+}
+
+// TestIsCompleteIsland_TwoNodes verifies mutual connectivity
+// requirement for two nodes.
+func TestIsCompleteIsland_TwoNodes(t *testing.T) {
+	g := New()
+
+	g.SetLocalNode("machine-a", "host-a", map[string]InterfaceDetails{
+		"eth0": {IPAddress: "fe80::1"},
+	})
+	
+	g.AddOrUpdate("machine-b", "host-b", "eth0", "fe80::2", "eth0", "", "", "", 0, true, "")
+
+	// Should be complete (A-B edge exists)
+	result := g.isCompleteIsland([]string{"machine-a", "machine-b"})
+	if !result {
+		t.Error("expected true for connected pair")
+	}
+}
+
+// TestIsCompleteIsland_IncompleteTriangle verifies that an
+// incomplete triangle is not considered a complete island.
+func TestIsCompleteIsland_IncompleteTriangle(t *testing.T) {
+	g := New()
+
+	g.SetLocalNode("machine-a", "host-a", map[string]InterfaceDetails{
+		"eth0": {IPAddress: "fe80::1"},
+	})
+	
+	g.AddOrUpdate("machine-b", "host-b", "eth0", "fe80::2", "eth0", "", "", "", 0, true, "")
+	g.AddOrUpdate("machine-c", "host-c", "eth0", "fe80::3", "eth0", "", "", "", 0, true, "")
+	
+	// Only A-B and A-C, missing B-C
+	result := g.isCompleteIsland([]string{"machine-a", "machine-b", "machine-c"})
+	if result {
+		t.Error("expected false for incomplete triangle")
+	}
+}
+
+// TestIsCompleteIsland_CompleteTriangle verifies that a
+// complete triangle is correctly identified.
+func TestIsCompleteIsland_CompleteTriangle(t *testing.T) {
+	g := New()
+
+	g.SetLocalNode("machine-a", "host-a", map[string]InterfaceDetails{
+		"eth0": {IPAddress: "fe80::1"},
+	})
+	
+	g.AddOrUpdate("machine-b", "host-b", "eth0", "fe80::2", "eth0", "", "", "", 0, true, "")
+	g.AddOrUpdate("machine-c", "host-c", "eth0", "fe80::3", "eth0", "", "", "", 0, true, "")
+	
+	// All three edges present (B-C added indirectly)
+	g.AddOrUpdateIndirectEdge("machine-b", "machine-c", "eth0", "eth0", "fe80::2", "fe80::3", "", "", "", 0, "machine-a")
+
+	result := g.isCompleteIsland([]string{"machine-a", "machine-b", "machine-c"})
+	if !result {
+		t.Error("expected true for complete triangle")
+	}
+}

@@ -4,6 +4,13 @@
 
 ### Added
 
+- **Network Segment Detection**: Identify and visualize shared network segments (switches/VLANs)
+  - Detects when 3+ hosts are connected on the same interface
+  - Visualizes segments as ellipse nodes in DOT graphs (light yellow fill)
+  - Marks complete islands (full mesh connectivity) with `*`
+  - Opt-in feature via `-show-segments` flag or `show_segments: true` in config
+  - 7 unit tests for segment detection logic
+  - Helps identify broadcast domains and shared connectivity patterns
 - **GoReleaser Support**: Automated releases with deb/rpm packages
   - Linux x86_64 packages (.deb for Debian/Ubuntu, .rpm for RHEL/CentOS/Fedora)
   - Automated GitHub releases with GitHub Actions
@@ -11,10 +18,10 @@
   - Binary archives with documentation and configuration files
 - **Unit Tests**: Comprehensive test suite for core packages
   - Configuration: 20 test cases with 89.4% coverage
-  - Graph operations: 18 test cases with 94.0% coverage (node/edge management, expiration, concurrency)
+  - Graph operations: 24 test cases with 94.0% coverage (node/edge management, expiration, concurrency, segments)
   - Discovery packets: 6 test cases for JSON serialization and neighbor information
   - Discovery helpers: 10 test cases for interface detection, IPv6 parsing, RDMA device mapping
-  - Total: 54 unit tests + 5 integration tests = 59 tests, all passing
+  - Total: 60 unit tests + 5 integration tests = 65 tests, all passing
   - Excellent coverage of critical components: graph (94.0%), config (89.4%), discovery (35.8%)
   - Thread-safety validated with concurrent access tests
   - See UNIT_TESTS.md for details

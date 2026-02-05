@@ -35,13 +35,21 @@ func calculatePenwidth(speedMbps int) float64 {
 }
 
 func GenerateDOT(nodes map[string]*graph.Node, edges map[string]map[string][]*graph.Edge) string {
+	return GenerateDOTWithSegments(nodes, edges, nil)
+}
+
+func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[string][]*graph.Edge, segments []graph.NetworkSegment) string {
 	var sb strings.Builder
 
 	sb.WriteString("graph lldiscovery {\n")
 	sb.WriteString("  rankdir=LR;\n")
 	sb.WriteString("  node [shape=box, style=rounded];\n")
 	sb.WriteString("  // RDMA-to-RDMA connections shown in BLUE with thick lines\n")
-	sb.WriteString("  // Dashed lines indicate indirect connections\n\n")
+	sb.WriteString("  // Dashed lines indicate indirect connections\n")
+	if len(segments) > 0 {
+		sb.WriteString("  // Network segments shown as yellow ellipses (* indicates complete island)\n")
+	}
+	sb.WriteString("\n")
 
 	// First pass: collect which interfaces have connections
 	connectedInterfaces := make(map[string]map[string]bool) // [machineID][interface] -> true
@@ -224,6 +232,91 @@ func GenerateDOT(nodes map[string]*graph.Node, edges map[string]map[string][]*gr
 					srcMachineID, dstMachineID, edgeAttrs))
 			}
 		}
+	}
+
+	// Add network segment nodes if provided
+	if len(segments) > 0 {
+		sb.WriteString("\n  // Network Segments\n")
+
+		// Track which edges have been replaced by segments
+		segmentEdges := make(map[string]bool)
+
+		for _, segment := range segments {
+			// Create segment node ID
+			segmentNodeID := fmt.Sprintf("segment_%s", segment.ID)
+
+			// Create segment label
+			ownerNode := nodes[segment.OwnerNodeID]
+			ownerHostname := segment.OwnerNodeID[:8]
+			if ownerNode != nil {
+				ownerHostname = ownerNode.Hostname
+			}
+
+			segmentLabel := fmt.Sprintf("Segment\\n%s:%s\\n(%d nodes)",
+				ownerHostname, segment.Interface, len(segment.ConnectedNodes))
+
+			// Add * for complete islands
+			if segment.IsComplete {
+				segmentLabel += " *"
+			}
+
+			// Create segment node (ellipse, yellow)
+			sb.WriteString(fmt.Sprintf("  \"%s\" [label=\"%s\", shape=ellipse, style=filled, fillcolor=lightyellow];\n",
+				segmentNodeID, segmentLabel))
+
+			// Connect segment owner to segment node
+			if ownerNode != nil {
+				ownerInterfaceLabel := segment.Interface
+				// Add RDMA info if available
+				if details, ok := ownerNode.Interfaces[segment.Interface]; ok && details.RDMADevice != "" {
+					ownerInterfaceLabel += fmt.Sprintf("\\n[%s]", details.RDMADevice)
+				}
+				sb.WriteString(fmt.Sprintf("  \"%s\" -- \"%s\" [label=\"%s\"];\n",
+					segment.OwnerNodeID, segmentNodeID, ownerInterfaceLabel))
+			}
+
+			// Connect all segment members to segment node
+			for _, memberID := range segment.ConnectedNodes {
+				memberNode := nodes[memberID]
+				if memberNode == nil {
+					continue
+				}
+
+				// Find the interface this member uses to connect to segment owner
+				var memberInterface string
+				var memberRDMA string
+				if memberEdges, exists := edges[memberID]; exists {
+					if edgeList, exists := memberEdges[segment.OwnerNodeID]; exists {
+						for _, edge := range edgeList {
+							// Find edge from member to segment owner
+							memberInterface = edge.LocalInterface
+							memberRDMA = edge.LocalRDMADevice
+							break
+						}
+					}
+				}
+
+				// Build member edge label
+				memberLabel := memberInterface
+				if memberRDMA != "" {
+					memberLabel += fmt.Sprintf("\\n[%s]", memberRDMA)
+				}
+
+				sb.WriteString(fmt.Sprintf("  \"%s\" -- \"%s\" [label=\"%s\"];\n",
+					memberID, segmentNodeID, memberLabel))
+
+				// Mark these edges as handled by segment
+				edgeKey1 := fmt.Sprintf("%s-%s", segment.OwnerNodeID, memberID)
+				edgeKey2 := fmt.Sprintf("%s-%s", memberID, segment.OwnerNodeID)
+				segmentEdges[edgeKey1] = true
+				segmentEdges[edgeKey2] = true
+			}
+
+			sb.WriteString("\n")
+		}
+
+		// Note: Original edges between segment members are still shown
+		// This allows seeing both the segment view and point-to-point connections
 	}
 
 	sb.WriteString("}\n")

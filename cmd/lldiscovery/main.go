@@ -45,6 +45,7 @@ var (
 
 	// Feature flags
 	includeNeighbors = flag.Bool("include-neighbors", false, "share neighbor information for transitive discovery")
+	showSegments     = flag.Bool("show-segments", false, "detect and visualize network segments (3+ nodes on same interface)")
 
 	// Telemetry parameters
 	telemetryEnabled       = flag.Bool("telemetry-enabled", false, "enable OpenTelemetry")
@@ -106,6 +107,9 @@ func main() {
 	flag.Visit(func(f *flag.Flag) {
 		if f.Name == "include-neighbors" {
 			cfg.IncludeNeighbors = *includeNeighbors
+		}
+		if f.Name == "show-segments" {
+			cfg.ShowSegments = *showSegments
 		}
 		if f.Name == "telemetry-enabled" {
 			cfg.Telemetry.Enabled = *telemetryEnabled
@@ -245,14 +249,14 @@ func main() {
 					neighbor.RemoteRDMADevice, // Neighbor's RDMA
 					neighbor.RemoteNodeGUID,
 					neighbor.RemoteSysImageGUID,
-					neighbor.RemoteSpeed, // Neighbor's speed
+					neighbor.RemoteSpeed,     // Neighbor's speed
 					neighbor.LocalInterface,  // Sender's interface (connecting to neighbor)
 					neighbor.LocalAddress,    // Sender's address
 					neighbor.LocalRDMADevice, // Sender's RDMA
 					neighbor.LocalNodeGUID,
 					neighbor.LocalSysImageGUID,
 					neighbor.LocalSpeed, // Sender's speed
-					p.MachineID,        // Learned from sender
+					p.MachineID,         // Learned from sender
 				)
 			}
 		}
@@ -263,7 +267,7 @@ func main() {
 	}
 
 	sender := discovery.NewSender(cfg.MulticastAddr, cfg.MulticastPort, cfg.SendInterval, logger, packetsSent, errors, cfg.IncludeNeighbors, g)
-	srv := server.New(cfg.HTTPAddress, g, logger)
+	srv := server.New(cfg.HTTPAddress, g, logger, cfg.ShowSegments)
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
@@ -318,7 +322,17 @@ func runExporter(ctx context.Context, g *graph.Graph, cfg *config.Config, logger
 			if g.HasChanges() {
 				nodes := g.GetNodes()
 				edges := g.GetEdges()
-				dot := export.GenerateDOT(nodes, edges)
+
+				// Generate DOT with or without segments
+				var dot string
+				if cfg.ShowSegments {
+					segments := g.GetNetworkSegments()
+					dot = export.GenerateDOTWithSegments(nodes, edges, segments)
+					logger.Debug("detected network segments", "count", len(segments))
+				} else {
+					dot = export.GenerateDOT(nodes, edges)
+				}
+
 				if err := export.WriteDOTFile(cfg.OutputFile, dot); err != nil {
 					logger.Error("failed to write DOT file", "error", err)
 				} else {
