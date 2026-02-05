@@ -46,12 +46,14 @@ type Node struct {
 type Edge struct {
 	LocalInterface     string
 	LocalAddress       string
+	LocalPrefixes      []string // Global unicast network prefixes
 	LocalRDMADevice    string
 	LocalNodeGUID      string
 	LocalSysImageGUID  string
 	LocalSpeed         int // Link speed in Mbps
 	RemoteInterface    string
 	RemoteAddress      string
+	RemotePrefixes     []string // Global unicast network prefixes
 	RemoteRDMADevice   string
 	RemoteNodeGUID     string
 	RemoteSysImageGUID string
@@ -146,12 +148,14 @@ func (g *Graph) AddOrUpdate(machineID, hostname, remoteIface, sourceIP, receivin
 		edge := &Edge{
 			LocalInterface:     receivingIface,
 			LocalAddress:       localDetails.IPAddress,
+			LocalPrefixes:      localDetails.GlobalPrefixes,
 			LocalRDMADevice:    localDetails.RDMADevice,
 			LocalNodeGUID:      localDetails.NodeGUID,
 			LocalSysImageGUID:  localDetails.SysImageGUID,
 			LocalSpeed:         localDetails.Speed,
 			RemoteInterface:    remoteIface,
 			RemoteAddress:      sourceIP,
+			RemotePrefixes:     remotePrefixes,
 			RemoteRDMADevice:   rdmaDevice,
 			RemoteNodeGUID:     nodeGUID,
 			RemoteSysImageGUID: sysImageGUID,
@@ -262,12 +266,14 @@ func (g *Graph) AddOrUpdateIndirectEdge(
 		edge := &Edge{
 			LocalInterface:     intermediateIface,
 			LocalAddress:       intermediateAddress,
+			LocalPrefixes:      intermediatePrefixes,
 			LocalRDMADevice:    intermediateRDMA,
 			LocalNodeGUID:      intermediateNodeGUID,
 			LocalSysImageGUID:  intermediateSysImageGUID,
 			LocalSpeed:         intermediateSpeed,
 			RemoteInterface:    neighborIface,
 			RemoteAddress:      neighborAddress,
+			RemotePrefixes:     neighborPrefixes,
 			RemoteRDMADevice:   neighborRDMA,
 			RemoteNodeGUID:     neighborNodeGUID,
 			RemoteSysImageGUID: neighborSysImageGUID,
@@ -421,12 +427,14 @@ func (g *Graph) GetEdges() map[string]map[string][]*Edge {
 				edgeCopies[i] = &Edge{
 					LocalInterface:     edge.LocalInterface,
 					LocalAddress:       edge.LocalAddress,
+					LocalPrefixes:      edge.LocalPrefixes,
 					LocalRDMADevice:    edge.LocalRDMADevice,
 					LocalNodeGUID:      edge.LocalNodeGUID,
 					LocalSysImageGUID:  edge.LocalSysImageGUID,
 					LocalSpeed:         edge.LocalSpeed,
 					RemoteInterface:    edge.RemoteInterface,
 					RemoteAddress:      edge.RemoteAddress,
+					RemotePrefixes:     edge.RemotePrefixes,
 					RemoteRDMADevice:   edge.RemoteRDMADevice,
 					RemoteNodeGUID:     edge.RemoteNodeGUID,
 					RemoteSysImageGUID: edge.RemoteSysImageGUID,
