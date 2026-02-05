@@ -253,7 +253,7 @@ curl http://localhost:6469/health
 
 ### Visualization
 
-Generate a PNG image from the DOT file:
+Generate a PNG or SVG image from the DOT file:
 
 ```bash
 # Install graphviz
@@ -262,11 +262,49 @@ sudo apt-get install graphviz
 # Generate visualization
 dot -Tpng /var/lib/lldiscovery/topology.dot -o topology.png
 
-# Or SVG
+# Or SVG (recommended for large topologies)
 dot -Tsvg /var/lib/lldiscovery/topology.dot -o topology.svg
 
 # Watch for changes and auto-regenerate
 watch -n 5 'dot -Tpng /var/lib/lldiscovery/topology.dot -o topology.png'
+```
+
+**Subgraph Structure Benefits:**
+- **Scalability**: Large topologies (100+ hosts) remain readable
+- **Interface Clarity**: Easy to see which interfaces are connected
+- **Multi-Interface Support**: Machines with multiple connections clearly show all paths
+- **RDMA Visibility**: RDMA interfaces highlighted with light blue fill
+- **Network Segmentation**: VLANs and segments visible through interface grouping
+
+**Example Topology:**
+```
+┌─────────────────────────────────┐
+│ server-01 (local)               │ ← Blue cluster border
+│ ┌─────────┐ ┌─────────┐        │
+│ │ eth0    │ │ ib0     │        │ ← Interface nodes
+│ │ fe80::1 │ │ fe80::3 │        │
+│ │ 10G     │ │ 100G    │        │
+│ └────┬────┘ └────┬────┘        │
+└──────┼──────────┼──────────────┘
+       │          │ Blue thick line (RDMA)
+       │          ↓
+       │    ┌─────────────────┐
+       │    │ server-02       │
+       │    │ ┌─────────┐    │
+       │    │ │ ib0     │    │
+       │    │ │ fe80::5 │    │
+       │    │ │ 100G    │    │
+       │    │ └─────────┘    │
+       │    └─────────────────┘
+       ↓
+  ┌─────────────────┐
+  │ server-03       │
+  │ ┌─────────┐    │
+  │ │ eth0    │    │
+  │ │ fe80::6 │    │
+  │ │ 10G     │    │
+  │ └─────────┘    │
+  └─────────────────┘
 ```
 
 ### RDMA Diagnostics
@@ -318,9 +356,16 @@ sudo rdma link add rxe0 type rxe netdev eth0
 7. **Export**: Periodically checks for changes and exports the graph to DOT file and serves via HTTP API
 
 **Graph Visualization**: 
-- The local node is highlighted with a blue background and "(local)" label
-- Edges between nodes show the connected interfaces (e.g., `eth0 <-> eth1`)
-- RDMA interfaces display their device name (e.g., `[mlx5_0]`), node_guid, and sys_image_guid
+- Each machine is shown as a **subgraph (cluster)** containing its interfaces
+- The local node's cluster is highlighted with a blue border and "(local)" label
+- Each interface is a separate node within the cluster showing:
+  - Interface name (e.g., `eth0`, `ib0`)
+  - IPv6 link-local address
+  - Link speed in Mbps
+  - RDMA device name (e.g., `[mlx5_0]`) with node_guid and sys_image_guid if present
+- RDMA interfaces are highlighted with light blue fill
+- Edges connect interface nodes between machines
+- RDMA-to-RDMA connections shown in blue with thick lines
 
 ### Multicast Address
 

@@ -478,10 +478,10 @@ func (g *Graph) GetDirectNeighbors() []NeighborData {
 
 // NetworkSegment represents a group of nodes reachable on a shared network (switch/VLAN)
 type NetworkSegment struct {
-	ID             string            // Unique ID for this segment
-	Interface      string            // Local interface name (e.g., "eth0")
-	ConnectedNodes []string          // Machine IDs of nodes in this segment
-	EdgeInfo       map[string]*Edge  // Map of nodeID -> edge info for connections to segment
+	ID             string           // Unique ID for this segment
+	Interface      string           // Local interface name (e.g., "eth0")
+	ConnectedNodes []string         // Machine IDs of nodes in this segment
+	EdgeInfo       map[string]*Edge // Map of nodeID -> edge info for connections to segment
 }
 
 // GetNetworkSegments finds groups of nodes connected to shared network segments
@@ -506,7 +506,7 @@ func (g *Graph) GetNetworkSegments() []NetworkSegment {
 	// Group neighbors by local interface, also collecting edge info
 	interfaceNeighbors := make(map[string][]string)
 	interfaceEdges := make(map[string]map[string]*Edge) // [interface][remoteID] -> edge
-	
+
 	for remoteID, edges := range localEdges {
 		for _, edge := range edges {
 			if edge.LocalInterface != "" {
@@ -514,7 +514,7 @@ func (g *Graph) GetNetworkSegments() []NetworkSegment {
 					interfaceNeighbors[edge.LocalInterface],
 					remoteID,
 				)
-				
+
 				// Store edge info for this interface
 				if interfaceEdges[edge.LocalInterface] == nil {
 					interfaceEdges[edge.LocalInterface] = make(map[string]*Edge)

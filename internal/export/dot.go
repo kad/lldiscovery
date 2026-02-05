@@ -44,6 +44,7 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 	sb.WriteString("graph lldiscovery {\n")
 	sb.WriteString("  rankdir=LR;\n")
 	sb.WriteString("  node [shape=box, style=rounded];\n")
+	sb.WriteString("  // Each machine is a subgraph (cluster) with interface nodes\n")
 	sb.WriteString("  // RDMA-to-RDMA connections shown in BLUE with thick lines\n")
 	sb.WriteString("  // Dashed lines indicate indirect connections\n")
 	if len(segments) > 0 {
@@ -58,7 +59,7 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 	segmentEdgeMap := make(map[string]map[string]bool) // [nodeA:nodeB][interface] -> true
 	localNodeID := ""
 	segmentInterfaces := make(map[string]map[string]string) // [nodeA][nodeB] -> segment interface
-	
+
 	if len(segments) > 0 {
 		// Find local node ID
 		for nodeID, node := range nodes {
@@ -67,7 +68,7 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 				break
 			}
 		}
-		
+
 		if localNodeID != "" {
 			for _, segment := range segments {
 				// Mark edges from local node to segment members on this specific interface
@@ -78,17 +79,17 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 							segmentInterfaces[localNodeID] = make(map[string]string)
 						}
 						segmentInterfaces[localNodeID][nodeID] = segment.Interface
-						
+
 						key1 := localNodeID + ":" + nodeID
 						key2 := nodeID + ":" + localNodeID
-						
+
 						if segmentEdgeMap[key1] == nil {
 							segmentEdgeMap[key1] = make(map[string]bool)
 						}
 						if segmentEdgeMap[key2] == nil {
 							segmentEdgeMap[key2] = make(map[string]bool)
 						}
-						
+
 						// Mark this edge on this interface as part of segment
 						segmentEdgeMap[key1][segment.Interface] = true
 						segmentEdgeMap[key2][segment.Interface] = true
@@ -115,59 +116,75 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 		}
 	}
 
-	// Generate nodes - only show connected interfaces and RDMA info
+	// Generate machine subgraphs with interface nodes
 	for machineID, node := range nodes {
 		shortID := machineID
 		if len(shortID) > 8 {
 			shortID = shortID[:8]
 		}
 
-		var ifaceList []string
+		// Create subgraph (cluster) for this machine
+		sb.WriteString(fmt.Sprintf("  subgraph cluster_%s {\n", machineID))
+		sb.WriteString("    style=rounded;\n")
+
+		// Different colors for local vs remote machines
+		if node.IsLocal {
+			sb.WriteString("    color=blue;\n")
+			sb.WriteString("    label=\"" + node.Hostname + " (local)\\n" + shortID + "\";\n")
+		} else {
+			sb.WriteString("    color=black;\n")
+			sb.WriteString("    label=\"" + node.Hostname + "\\n" + shortID + "\";\n")
+		}
+
+		// Create interface nodes inside the subgraph
+		hasInterfaces := false
 		for iface, details := range node.Interfaces {
 			// Only show interfaces that have connections
 			if !connectedInterfaces[machineID][iface] {
 				continue
 			}
+			hasInterfaces = true
 
-			ifaceStr := iface
-			// Add RDMA device name if present
-			if details.RDMADevice != "" {
-				ifaceStr += fmt.Sprintf(" [%s]", details.RDMADevice)
+			// Build interface node ID
+			ifaceNodeID := fmt.Sprintf("%s__%s", machineID, iface)
+
+			// Build interface label with IP and RDMA info
+			ifaceLabel := iface
+			if details.IPAddress != "" {
+				ifaceLabel += fmt.Sprintf("\\n%s", details.IPAddress)
 			}
-			// Add RDMA GUIDs if present (compact format)
-			if details.NodeGUID != "" || details.SysImageGUID != "" {
+			if details.Speed > 0 {
+				ifaceLabel += fmt.Sprintf("\\n%d Mbps", details.Speed)
+			}
+			if details.RDMADevice != "" {
+				ifaceLabel += fmt.Sprintf("\\n[%s]", details.RDMADevice)
+				// Add RDMA GUIDs if present
 				if details.NodeGUID != "" {
-					ifaceStr += fmt.Sprintf("\\nN: %s", details.NodeGUID)
+					ifaceLabel += fmt.Sprintf("\\nN: %s", details.NodeGUID)
 				}
 				if details.SysImageGUID != "" {
-					ifaceStr += fmt.Sprintf("\\nS: %s", details.SysImageGUID)
+					ifaceLabel += fmt.Sprintf("\\nS: %s", details.SysImageGUID)
 				}
 			}
-			ifaceList = append(ifaceList, ifaceStr)
+
+			// Interface node styling
+			nodeStyle := "shape=box, style=\"rounded\""
+			if details.RDMADevice != "" {
+				nodeStyle = "shape=box, style=\"rounded,filled\", fillcolor=\"#e6f3ff\""
+			}
+
+			sb.WriteString(fmt.Sprintf("    \"%s\" [label=\"%s\", %s];\n",
+				ifaceNodeID, ifaceLabel, nodeStyle))
 		}
 
-		var label string
-		if len(ifaceList) > 0 {
-			ifaceStr := strings.Join(ifaceList, "\\n")
-			label = fmt.Sprintf("%s\\n%s\\n%s",
-				node.Hostname,
-				shortID,
-				ifaceStr)
-		} else {
-			// No connected interfaces - just show hostname and ID
-			label = fmt.Sprintf("%s\\n%s",
-				node.Hostname,
-				shortID)
+		// If no interfaces, create a placeholder node
+		if !hasInterfaces {
+			placeholderID := fmt.Sprintf("%s__placeholder", machineID)
+			sb.WriteString(fmt.Sprintf("    \"%s\" [label=\"(no connections)\", shape=plaintext, fontcolor=gray];\n",
+				placeholderID))
 		}
 
-		// Highlight local node with different style
-		if node.IsLocal {
-			sb.WriteString(fmt.Sprintf("  \"%s\" [label=\"%s (local)\", style=\"rounded,filled\", fillcolor=\"lightblue\"];\n",
-				machineID, label))
-		} else {
-			sb.WriteString(fmt.Sprintf("  \"%s\" [label=\"%s\"];\n",
-				machineID, label))
-		}
+		sb.WriteString("  }\n\n")
 	}
 
 	// Add network segment nodes if provided
@@ -175,10 +192,10 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 		sb.WriteString("\n  // Network Segments\n")
 		for i, segment := range segments {
 			segmentNodeID := fmt.Sprintf("segment_%d", i)
-			
+
 			// Build segment label with interface and node count
 			segmentLabel := fmt.Sprintf("segment: %s\\n%d nodes", segment.Interface, len(segment.ConnectedNodes))
-			
+
 			// Check if all edges have RDMA
 			allHaveRDMA := true
 			for _, edge := range segment.EdgeInfo {
@@ -190,49 +207,57 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 			if allHaveRDMA && len(segment.EdgeInfo) > 0 {
 				segmentLabel += "\\n[RDMA]"
 			}
-			
+
 			// Create segment node (ellipse, yellow)
 			sb.WriteString(fmt.Sprintf("  \"%s\" [label=\"%s\", shape=ellipse, style=filled, fillcolor=\"#ffffcc\"];\n",
 				segmentNodeID, segmentLabel))
-			
-			// Connect segment to each member node with edge details
+
+			// Connect segment to each member node's interface
 			for _, nodeID := range segment.ConnectedNodes {
 				// Get edge info for this node if available
 				edge, hasEdge := segment.EdgeInfo[nodeID]
-				
+
 				if hasEdge {
-					// Build edge label with interface and address info
-					edgeLabel := fmt.Sprintf("%s\\n%s", edge.RemoteInterface, edge.RemoteAddress)
-					
+					// Build interface node ID for the connection
+					ifaceNodeID := fmt.Sprintf("%s__%s", nodeID, edge.RemoteInterface)
+
+					// Build edge label with address info
+					edgeLabel := edge.RemoteAddress
+
 					// Add speed if available
 					if edge.RemoteSpeed > 0 {
 						edgeLabel += fmt.Sprintf("\\n%d Mbps", edge.RemoteSpeed)
 					}
-					
+
 					// Add RDMA info if present
 					if edge.RemoteRDMADevice != "" {
 						edgeLabel += fmt.Sprintf("\\n[%s]", edge.RemoteRDMADevice)
 					}
-					
+
 					// Determine if this edge should be highlighted
 					styleAttr := "style=dotted, color=gray"
 					if edge.RemoteRDMADevice != "" && edge.LocalRDMADevice != "" {
 						styleAttr = "style=dotted, color=blue, penwidth=2.0"
 					}
-					
+
 					sb.WriteString(fmt.Sprintf("  \"%s\" -- \"%s\" [label=\"%s\", %s];\n",
-						segmentNodeID, nodeID, edgeLabel, styleAttr))
+						segmentNodeID, ifaceNodeID, edgeLabel, styleAttr))
 				} else {
-					// No edge info (shouldn't happen, but handle gracefully)
-					sb.WriteString(fmt.Sprintf("  \"%s\" -- \"%s\" [style=dotted, color=gray];\n",
-						segmentNodeID, nodeID))
+					// No edge info - try to find any interface on this node
+					// (shouldn't happen with proper segment detection, but handle gracefully)
+					for iface := range connectedInterfaces[nodeID] {
+						ifaceNodeID := fmt.Sprintf("%s__%s", nodeID, iface)
+						sb.WriteString(fmt.Sprintf("  \"%s\" -- \"%s\" [style=dotted, color=gray];\n",
+							segmentNodeID, ifaceNodeID))
+						break // Just connect to first interface
+					}
 				}
 			}
 		}
 	}
 
-	// Add edges (excluding those in segments on matching interfaces)
-	sb.WriteString("\n")
+	// Add edges between interface nodes (excluding those in segments on matching interfaces)
+	sb.WriteString("\n  // Connections between interfaces\n")
 	edgesAdded := make(map[string]bool) // Track to avoid showing both directions of same edge
 	for srcMachineID, dests := range edges {
 		for dstMachineID, edgeList := range dests {
@@ -247,30 +272,35 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 						}
 					}
 				}
-				// Create a canonical edge key for deduplication (sorted + interface pair)
-				edgeKey := fmt.Sprintf("%s:%s--%s:%s", srcMachineID, edge.LocalInterface, dstMachineID, edge.RemoteInterface)
-				reverseKey := fmt.Sprintf("%s:%s--%s:%s", dstMachineID, edge.RemoteInterface, srcMachineID, edge.LocalInterface)
+
+				// Build interface node IDs
+				srcIfaceNodeID := fmt.Sprintf("%s__%s", srcMachineID, edge.LocalInterface)
+				dstIfaceNodeID := fmt.Sprintf("%s__%s", dstMachineID, edge.RemoteInterface)
+
+				// Create a canonical edge key for deduplication
+				edgeKey := fmt.Sprintf("%s--%s", srcIfaceNodeID, dstIfaceNodeID)
+				reverseKey := fmt.Sprintf("%s--%s", dstIfaceNodeID, srcIfaceNodeID)
 
 				if edgesAdded[edgeKey] || edgesAdded[reverseKey] {
 					continue
 				}
 				edgesAdded[edgeKey] = true
 
-				// Build edge label with addresses
-				edgeLabel := fmt.Sprintf("%s (%s) <-> %s (%s)",
-					edge.LocalInterface, edge.LocalAddress,
-					edge.RemoteInterface, edge.RemoteAddress)
+				// Build simplified edge label (addresses only, since interface info is in nodes)
+				edgeLabel := fmt.Sprintf("%s <-> %s", edge.LocalAddress, edge.RemoteAddress)
 
 				// Add speed information if available
 				if edge.LocalSpeed > 0 || edge.RemoteSpeed > 0 {
-					speedLine := "Speed:"
+					speedLine := ""
 					if edge.LocalSpeed > 0 {
-						speedLine += fmt.Sprintf(" %d Mbps", edge.LocalSpeed)
+						speedLine += fmt.Sprintf("%d", edge.LocalSpeed)
 					}
 					if edge.RemoteSpeed > 0 && edge.RemoteSpeed != edge.LocalSpeed {
 						speedLine += fmt.Sprintf(" <-> %d Mbps", edge.RemoteSpeed)
-					} else if edge.LocalSpeed == 0 && edge.RemoteSpeed > 0 {
-						speedLine += fmt.Sprintf(" %d Mbps", edge.RemoteSpeed)
+					} else if edge.LocalSpeed > 0 {
+						speedLine += " Mbps"
+					} else if edge.RemoteSpeed > 0 {
+						speedLine += fmt.Sprintf("%d Mbps", edge.RemoteSpeed)
 					}
 					edgeLabel += "\\n" + speedLine
 				}
@@ -280,41 +310,7 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 				hasRemoteRDMA := edge.RemoteRDMADevice != ""
 				bothRDMA := hasLocalRDMA && hasRemoteRDMA
 
-				// Add RDMA info to edge label if present on either side
-				var rdmaLines []string
-
-				// Build local RDMA info line
-				if hasLocalRDMA {
-					localRDMA := fmt.Sprintf("Local: %s", edge.LocalRDMADevice)
-					if edge.LocalNodeGUID != "" {
-						localRDMA += fmt.Sprintf(" N:%s", edge.LocalNodeGUID)
-					}
-					if edge.LocalSysImageGUID != "" {
-						localRDMA += fmt.Sprintf(" S:%s", edge.LocalSysImageGUID)
-					}
-					rdmaLines = append(rdmaLines, localRDMA)
-				}
-
-				// Build remote RDMA info line
-				if hasRemoteRDMA {
-					remoteRDMA := fmt.Sprintf("Remote: %s", edge.RemoteRDMADevice)
-					if edge.RemoteNodeGUID != "" {
-						remoteRDMA += fmt.Sprintf(" N:%s", edge.RemoteNodeGUID)
-					}
-					if edge.RemoteSysImageGUID != "" {
-						remoteRDMA += fmt.Sprintf(" S:%s", edge.RemoteSysImageGUID)
-					}
-					rdmaLines = append(rdmaLines, remoteRDMA)
-				}
-
-				// Add RDMA info to label
-				if len(rdmaLines) > 0 {
-					for _, line := range rdmaLines {
-						edgeLabel += "\\n" + line
-					}
-				}
-
-				// Add RDMA-to-RDMA indicator
+				// Add RDMA-to-RDMA indicator (device names are in interface nodes)
 				if bothRDMA {
 					edgeLabel += "\\n[RDMA-to-RDMA]"
 				}
@@ -337,16 +333,13 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 				if bothRDMA {
 					// Both sides have RDMA - colored edge with speed-based thickness
 					edgeAttrs = fmt.Sprintf(" [label=\"%s\", color=\"blue\", penwidth=%.1f%s]", edgeLabel, penwidth, styleExtra)
-				} else if hasLocalRDMA || hasRemoteRDMA {
-					// Only one side has RDMA - normal edge with speed-based thickness
-					edgeAttrs = fmt.Sprintf(" [label=\"%s\", penwidth=%.1f%s]", edgeLabel, penwidth, styleExtra)
 				} else {
-					// No RDMA - normal edge with speed-based thickness
+					// Normal edge with speed-based thickness
 					edgeAttrs = fmt.Sprintf(" [label=\"%s\", penwidth=%.1f%s]", edgeLabel, penwidth, styleExtra)
 				}
 
 				sb.WriteString(fmt.Sprintf("  \"%s\" -- \"%s\"%s;\n",
-					srcMachineID, dstMachineID, edgeAttrs))
+					srcIfaceNodeID, dstIfaceNodeID, edgeAttrs))
 			}
 		}
 	}
@@ -357,16 +350,16 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 
 // WriteDOTFile writes DOT content to a file
 func WriteDOTFile(filename, content string) error {
-// Create directory if it doesn't exist
-dir := filepath.Dir(filename)
-if err := os.MkdirAll(dir, 0755); err != nil {
-return fmt.Errorf("failed to create directory: %w", err)
-}
+	// Create directory if it doesn't exist
+	dir := filepath.Dir(filename)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create directory: %w", err)
+	}
 
-// Write file
-if err := os.WriteFile(filename, []byte(content), 0644); err != nil {
-return fmt.Errorf("failed to write file: %w", err)
-}
+	// Write file
+	if err := os.WriteFile(filename, []byte(content), 0644); err != nil {
+		return fmt.Errorf("failed to write file: %w", err)
+	}
 
-return nil
+	return nil
 }

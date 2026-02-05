@@ -4,6 +4,17 @@
 
 ### Added
 
+- **Subgraph Visualization**: Improved DOT output for large topologies
+  - Each machine rendered as a subgraph (cluster) with separate interface nodes
+  - Machine cluster shows hostname and machine ID in border label
+  - Each interface is a distinct node showing: name, IP, speed, RDMA info
+  - RDMA interfaces highlighted with light blue fill (#e6f3ff)
+  - Edges connect interface nodes directly (not machine nodes)
+  - Edge labels simplified (addresses + speed) since interface info is in nodes
+  - Local node cluster marked with blue border
+  - Dramatically improves readability for 100+ host topologies
+  - Easier to trace which interfaces connect where
+  - Better visual grouping of multi-interface hosts
 - **Network Segment Detection**: Identify and visualize shared network segments (switches/VLANs)
   - Detects when a host can reach 3+ neighbors on the same interface
   - Segments show interface name, node count, and RDMA capability
