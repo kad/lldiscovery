@@ -241,7 +241,7 @@ See `OPENTELEMETRY.md` for complete documentation.
 The daemon exposes an HTTP API for querying the current graph:
 
 ```bash
-# Get graph as JSON
+# Get complete topology as JSON (nodes, edges, and segments if enabled)
 curl http://localhost:6469/graph
 
 # Get graph as DOT format
@@ -250,6 +250,62 @@ curl http://localhost:6469/graph.dot
 # Health check
 curl http://localhost:6469/health
 ```
+
+**JSON Response Format:**
+
+The `/graph` endpoint returns a JSON object with:
+- `nodes`: Map of machine IDs to node information (hostname, interfaces, RDMA devices, etc.)
+- `edges`: Map of edges between nodes showing direct and indirect connections
+- `segments`: Network segments/VLANs detected (only when `--show-segments` is enabled)
+
+Example response structure:
+```json
+{
+  "nodes": {
+    "machine-id-1": {
+      "Hostname": "host1",
+      "MachineID": "machine-id-1",
+      "LastSeen": "2026-02-05T20:00:00Z",
+      "Interfaces": {
+        "eth0": {
+          "IPAddress": "fe80::1",
+          "RDMADevice": "",
+          "Speed": 1000
+        }
+      },
+      "IsLocal": false
+    }
+  },
+  "edges": {
+    "machine-id-1": {
+      "machine-id-2": [
+        {
+          "LocalInterface": "eth0",
+          "LocalAddress": "fe80::1",
+          "RemoteInterface": "eth0",
+          "RemoteAddress": "fe80::2",
+          "LocalSpeed": 1000,
+          "RemoteSpeed": 1000,
+          "Direct": true,
+          "LearnedFrom": ""
+        }
+      ]
+    }
+  },
+  "segments": [
+    {
+      "Interface": "eth0",
+      "ConnectedNodes": ["machine-id-1", "machine-id-2", "machine-id-3"],
+      "EdgeInfo": { ... }
+    }
+  ]
+}
+```
+
+**Edge Types:**
+- `Direct: true` - Direct discovery between nodes (solid lines in DOT)
+- `Direct: false` - Indirectly learned connections (dashed lines in DOT)
+- `LearnedFrom` - Machine ID that shared this neighbor information (for indirect edges)
 
 ### Visualization
 

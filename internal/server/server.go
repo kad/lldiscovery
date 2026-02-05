@@ -67,9 +67,25 @@ func (s *Server) handleGraph(w http.ResponseWriter, r *http.Request) {
 	}
 
 	nodes := s.graph.GetNodes()
+	edges := s.graph.GetEdges()
+
+	// Build response with full topology information
+	response := map[string]interface{}{
+		"nodes": nodes,
+		"edges": edges,
+	}
+
+	// Include segments if enabled
+	if s.showSegments {
+		segments := s.graph.GetNetworkSegments()
+		response["segments"] = segments
+	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(nodes)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		s.logger.Error("failed to encode JSON", "error", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+	}
 }
 
 func (s *Server) handleGraphDOT(w http.ResponseWriter, r *http.Request) {
