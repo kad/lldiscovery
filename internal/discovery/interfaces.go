@@ -49,7 +49,7 @@ func GetActiveInterfaces() ([]InterfaceInfo, error) {
 		var linkLocal string
 		var globalPrefixes []string
 
-		// Collect both link-local and global unicast addresses
+		// Collect link-local (IPv6) and global unicast addresses (IPv4 + IPv6)
 		for _, addr := range addrs {
 			ipNet, ok := addr.(*net.IPNet)
 			if !ok {
@@ -57,17 +57,33 @@ func GetActiveInterfaces() ([]InterfaceInfo, error) {
 			}
 
 			ip := ipNet.IP
-			if ip.To4() != nil {
-				continue // Skip IPv4
+
+			// Handle IPv4 addresses
+			if ip4 := ip.To4(); ip4 != nil {
+				// Skip loopback (127.0.0.0/8)
+				if ip4[0] == 127 {
+					continue
+				}
+				// Skip link-local (169.254.0.0/16)
+				if ip4[0] == 169 && ip4[1] == 254 {
+					continue
+				}
+				// Collect IPv4 global prefix
+				prefix := fmt.Sprintf("%s/%d", ipNet.IP.Mask(ipNet.Mask).String(), getPrefixLength(ipNet.Mask))
+				if !contains(globalPrefixes, prefix) {
+					globalPrefixes = append(globalPrefixes, prefix)
+				}
+				continue
 			}
 
+			// Handle IPv6 addresses
 			if ip.IsLinkLocalUnicast() {
-				// Found link-local address
+				// Found IPv6 link-local address (required for discovery)
 				if linkLocal == "" {
 					linkLocal = formatIPv6WithZone(ip, iface.Name)
 				}
 			} else if ip.IsGlobalUnicast() {
-				// Found global unicast address - extract network prefix
+				// Found IPv6 global unicast address - extract network prefix
 				prefix := fmt.Sprintf("%s/%d", ipNet.IP.Mask(ipNet.Mask).String(), getPrefixLength(ipNet.Mask))
 				// Avoid duplicates
 				if !contains(globalPrefixes, prefix) {

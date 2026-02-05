@@ -1,10 +1,11 @@
 # Network Prefix-Based Segment Naming
 
-**Date**: 2026-02-05
+**Date**: 2026-02-05  
+**Updated**: 2026-02-05 (Added IPv4 support)
 
 ## Overview
 
-The daemon now collects IPv6 global unicast network prefixes from all interfaces and uses them to provide intelligent, consistent naming for network segments in topology visualizations.
+The daemon now collects network prefixes (both IPv4 and IPv6) from all interfaces and uses them to provide intelligent, consistent naming for network segments in topology visualizations.
 
 ## Problem Statement
 
@@ -25,10 +26,25 @@ segment: eth0
 
 ### After: Prefix-Based Naming
 
-Now segments display the IPv6 network prefix when global addresses are configured:
+Now segments display the network prefix when global addresses are configured:
 
+**IPv4 example:**
+```
+192.168.1.0/24
+4 nodes
+(eth0)
+```
+
+**IPv6 example:**
 ```
 2001:db8:100::/64
+4 nodes
+(eth0)
+```
+
+**Dual-stack example (most common prefix shown):**
+```
+192.168.1.0/24
 4 nodes
 (eth0)
 ```
@@ -38,16 +54,58 @@ Now segments display the IPv6 network prefix when global addresses are configure
 2. **Self-documenting**: Network prefix immediately shows the subnet
 3. **Configuration clarity**: Easy to match with network design docs
 4. **Debugging ease**: Spot misconfigured networks instantly
+5. **Dual-stack support**: Works with IPv4-only, IPv6-only, or dual-stack networks
 
 ## Implementation
 
 ### Data Collection
 
-The daemon collects global unicast addresses during interface discovery:
+The daemon collects both IPv4 and IPv6 global addresses during interface discovery:
 
 ```go
 // In GetActiveInterfaces()
 for _, addr := range addrs {
+    ip := ipNet.IP
+    
+    // Handle IPv4 addresses
+    if ip4 := ip.To4(); ip4 != nil {
+        // Skip loopback (127.0.0.0/8)
+        if ip4[0] == 127 {
+            continue
+        }
+        // Skip link-local (169.254.0.0/16)
+        if ip4[0] == 169 && ip4[1] == 254 {
+            continue
+        }
+        // Collect IPv4 prefix
+        prefix := fmt.Sprintf("%s/%d", 
+            ipNet.IP.Mask(ipNet.Mask).String(), 
+            getPrefixLength(ipNet.Mask))
+        globalPrefixes = append(globalPrefixes, prefix)
+        continue
+    }
+    
+    // Handle IPv6 addresses
+    if ip.IsGlobalUnicast() {
+        // Extract IPv6 network prefix
+        prefix := fmt.Sprintf("%s/%d", 
+            ipNet.IP.Mask(ipNet.Mask).String(), 
+            getPrefixLength(ipNet.Mask))
+        globalPrefixes = append(globalPrefixes, prefix)
+    }
+}
+```
+
+**Collected information:**
+- **IPv4**: All non-loopback, non-link-local addresses
+  - Typical: 192.168.x.0/24, 10.x.x.0/16, 172.16-31.x.0/16
+  - Excludes: 127.0.0.0/8 (loopback), 169.254.0.0/16 (link-local)
+- **IPv6**: Global unicast addresses only (not link-local)
+  - Typical: 2001:db8::/32, fc00::/7 (ULA), other global addresses
+  - Excludes: fe80::/10 (link-local)
+- Network prefix with CIDR notation (e.g., `/24`, `/64`)
+- Multiple prefixes per interface supported (dual-stack)
+- Deduplicated per interface
     ip := ipNet.IP
     if ip.IsGlobalUnicast() {
         // Extract network prefix (e.g., "2001:db8:100::/64")
@@ -131,27 +189,32 @@ func (g *Graph) getMostCommonPrefix(nodeIDs []string, edgeInfo map[string]*Edge)
 - Handles misconfigurations gracefully (one node has wrong subnet)
 - Works when not all nodes have global addresses
 - Produces consistent results across all hosts
+- In dual-stack environments, selects whichever prefix (IPv4 or IPv6) is most common
 
 ### Visualization
 
 DOT export shows prefix-based segment labels:
 
 ```graphviz
-// With global addresses configured
-"segment_0" [label="2001:db8:100::/64\n4 nodes\n(eth0)", 
+// IPv4 prefix
+"segment_0" [label="192.168.1.0/24\n4 nodes\n(eth0)", 
+    shape=ellipse, style=filled, fillcolor="#ffffcc"];
+
+// IPv6 prefix
+"segment_1" [label="2001:db8:100::/64\n4 nodes\n(eth0)", 
     shape=ellipse, style=filled, fillcolor="#ffffcc"];
 
 // Without global addresses (fallback)
-"segment_1" [label="segment: eth1\n3 nodes", 
+"segment_2" [label="segment: eth1\n3 nodes", 
     shape=ellipse, style=filled, fillcolor="#ffffcc"];
 
 // With RDMA
-"segment_2" [label="2001:db8:200::/64\n5 nodes\n(ib0)\n[RDMA]",
+"segment_3" [label="10.1.0.0/16\n5 nodes\n(ib0)\n[RDMA]",
     shape=ellipse, style=filled, fillcolor="#ffffcc"];
 ```
 
 **Label format:**
-- **Line 1**: Network prefix (or "segment: interface" if no prefix)
+- **Line 1**: Network prefix (IPv4 or IPv6) or "segment: interface" if no prefix
 - **Line 2**: Node count
 - **Line 3**: Interface name in parentheses (only if prefix shown)
 - **Line 4**: `[RDMA]` indicator if applicable
@@ -160,13 +223,73 @@ DOT export shows prefix-based segment labels:
 
 No configuration required - feature works automatically when:
 
-1. **Global IPv6 addresses configured** on interfaces
-2. **Proper subnet masks** set (e.g., `/64` for standard subnets)
+1. **Global addresses configured** on interfaces (IPv4 and/or IPv6)
+2. **Proper subnet masks** set (e.g., `/24` for IPv4, `/64` for IPv6)
 3. **Same prefix used** across all hosts on the VLAN
 
 ## Use Cases
 
-### Use Case 1: Multi-VLAN Data Center
+### Use Case 1: Traditional IPv4 Data Center
+
+**Network design:**
+- VLAN 10: `10.0.10.0/24` (management)
+- VLAN 20: `10.0.20.0/24` (storage)
+- VLAN 30: `10.0.30.0/24` (compute)
+
+**Visualization:**
+```
+    ┌─────────────────────────┐
+    │  10.0.10.0/24           │
+    │  15 nodes               │
+    │  (em1)                  │
+    └────────┬────────────────┘
+             │
+     ┌───────┼───────┐
+     │       │       │
+  [Host1] [Host2] [Host3] ...
+     │       │       │
+     └───────┼───────┘
+             │
+    ┌────────┴────────────────┐
+    │  10.0.20.0/24           │
+    │  15 nodes               │
+    │  (em2)                  │
+    └─────────────────────────┘
+```
+
+**Benefits:**
+- Works with existing IPv4-only infrastructure
+- No IPv6 required for intelligent naming
+- Clear subnet identification
+
+### Use Case 2: Dual-Stack Enterprise Network
+
+**Network design (both IPv4 and IPv6):**
+- VLAN 100: `192.168.100.0/24` + `2001:db8:100::/64` (management)
+- VLAN 200: `192.168.200.0/24` + `2001:db8:200::/64` (storage)
+- VLAN 300: `192.168.300.0/24` + `2001:db8:300::/64` (compute)
+
+**Visualization:**
+```
+    ┌─────────────────────────┐
+    │  192.168.100.0/24       │
+    │  15 nodes               │
+    │  (em1)                  │
+    └────────┬────────────────┘
+             │
+      [Dual-stack hosts]
+             │
+    ┌────────┴────────────────┐
+    │  192.168.200.0/24       │
+    │  15 nodes               │
+    │  (em2)                  │
+    │  [RDMA]                 │
+    └─────────────────────────┘
+```
+
+**Note:** Most common prefix shown (typically IPv4 in dual-stack environments)
+
+### Use Case 3: IPv6-Only Data Center
 
 **Network design:**
 - VLAN 100: `2001:db8:100::/64` (management)
@@ -196,11 +319,11 @@ No configuration required - feature works automatically when:
 ```
 
 **Benefits:**
-- Immediately see which VLAN each segment represents
-- Verify all hosts have correct network configuration
-- Spot misconfigured hosts (wrong prefix = wrong VLAN)
+- Modern IPv6-first infrastructure
+- Globally unique addressing
+- No NAT complexities
 
-### Use Case 2: Cloud Overlay Networks
+### Use Case 4: Cloud Overlay Networks
 
 **AWS/Azure environment** with multiple subnets:
 - Subnet A: `fd00:ec2:100::/48`
