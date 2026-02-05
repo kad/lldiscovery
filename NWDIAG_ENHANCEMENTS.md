@@ -3,9 +3,19 @@
 ## Date
 2026-02-05 23:30 (Updated: 2026-02-05 23:45)
 
-## Updates (2026-02-05 23:45)
+## Updates (2026-02-05 23:45 → 23:55)
 
-### Issues Fixed
+### Issues Fixed (Session 2)
+1. **Excessive P2P networks**: 37 → 5 networks (fixed in 3 iterations)
+   - Iteration 1: Canonical edge keys (37 → 34)
+   - Iteration 2: Fallback to segment interface (34 → 20)
+   - Iteration 3: Correct local node interface detection (20 → 5)
+
+**Root Cause**: Local node interface determination was using segment.Interface as fallback, but segment.Interface represents the most common interface among segment members, not necessarily the local node's interface.
+
+**Solution**: Extract local node interface from EdgeInfo.LocalInterface (present in all EdgeInfo entries) and use it for nodes without explicit EdgeInfo entries.
+
+### Issues Fixed (Session 1)
 1. **Segment speed calculation**: Networks showed incorrect speed (10 Gbps instead of 1 Gbps)
    - Root cause: Using maximum speed across all interfaces including bridges with inflated speeds
    - Fix: Use most common speed (mode) instead of maximum
@@ -17,6 +27,49 @@
    - Result: RDMA links (p2p1, p3p1, p8p1) now appear as peer networks with sky blue color
 
 ### Technical Changes
+
+#### Local Node Interface Detection (Final Fix)
+**Problem**: Segment.Interface doesn't represent the local node's interface, causing local node edges not to be marked as processed.
+
+**Before**: 
+```go
+// Use segment.Interface as fallback for all nodes
+for _, nodeID := range segment.ConnectedNodes {
+    if nodeInterfaces[nodeID] == "" {
+        nodeInterfaces[nodeID] = segment.Interface
+    }
+}
+```
+
+**After**:
+```go
+// Extract local node interface from any EdgeInfo entry
+var localNodeInterface string
+for _, edge := range segment.EdgeInfo {
+    if edge.LocalInterface != "" {
+        localNodeInterface = edge.LocalInterface
+        break
+    }
+}
+
+// Use local node interface for nodes without EdgeInfo
+for _, nodeID := range segment.ConnectedNodes {
+    if nodeInterfaces[nodeID] == "" {
+        if localNodeInterface != "" {
+            nodeInterfaces[nodeID] = localNodeInterface
+        } else {
+            nodeInterfaces[nodeID] = segment.Interface
+        }
+    }
+}
+```
+
+**Rationale**: 
+- EdgeInfo.LocalInterface is consistent across all entries (represents local node's interface)
+- segment.Interface is the most common interface among members (often a bridge like br112)
+- Local node might use a different interface (e.g., em1) than the segment's main interface
+
+**Result**: Local node edges correctly marked as processed, reducing P2P networks from 20 to 5.
 
 #### Segment Speed Algorithm
 **Before**: Use maximum RemoteSpeed

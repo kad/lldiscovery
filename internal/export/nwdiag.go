@@ -163,12 +163,37 @@ func ExportNwdiag(nodes map[string]*graph.Node, edges map[string]map[string][]*g
 		// Mark edges in this segment as processed
 		// Build a map of which interface each node uses in this segment
 		nodeInterfaces := make(map[string]string)
+		
+		// First, find the local node's interface from any EdgeInfo entry's LocalInterface
+		var localNodeInterface string
+		for _, edge := range segment.EdgeInfo {
+			if edge.LocalInterface != "" {
+				localNodeInterface = edge.LocalInterface
+				break
+			}
+		}
+		
+		// Then populate interfaces for all nodes
 		for nodeID, edge := range segment.EdgeInfo {
 			if edge.RemoteInterface != "" {
 				nodeInterfaces[nodeID] = edge.RemoteInterface
 			} else if edge.LocalInterface != "" {
-				// For local node, use LocalInterface
+				// This is the local node's own entry (empty RemoteInterface)
 				nodeInterfaces[nodeID] = edge.LocalInterface
+			}
+		}
+		
+		// For nodes without EdgeInfo entry, try to identify the local node
+		// The local node is the one not in EdgeInfo but in ConnectedNodes
+		for _, nodeID := range segment.ConnectedNodes {
+			if nodeInterfaces[nodeID] == "" {
+				// Check if this could be the local node (has edges to other segment members)
+				if localNodeInterface != "" {
+					nodeInterfaces[nodeID] = localNodeInterface
+				} else {
+					// Fallback to segment interface
+					nodeInterfaces[nodeID] = segment.Interface
+				}
 			}
 		}
 		
@@ -181,11 +206,9 @@ func ExportNwdiag(nodes map[string]*graph.Node, edges map[string]map[string][]*g
 				ifaceA := nodeInterfaces[nodeA]
 				ifaceB := nodeInterfaces[nodeB]
 				if ifaceA != "" && ifaceB != "" {
-					// Mark both directions with their specific interfaces
-					key1 := fmt.Sprintf("%s:%s:%s:%s", nodeA, nodeB, ifaceA, ifaceB)
-					key2 := fmt.Sprintf("%s:%s:%s:%s", nodeB, nodeA, ifaceB, ifaceA)
-					processedEdges[key1] = true
-					processedEdges[key2] = true
+					// Mark with canonical key (order-independent)
+					key := makeEdgeKeyWithInterfaces(nodeA, nodeB, ifaceA, ifaceB)
+					processedEdges[key] = true
 				}
 			}
 		}
@@ -209,7 +232,7 @@ func ExportNwdiag(nodes map[string]*graph.Node, edges map[string]map[string][]*g
 			// Process each edge separately (nodes can have multiple edges on different interfaces)
 			for _, edge := range edgeList {
 				// Check if this specific edge was already processed as part of a segment
-				edgeKey := fmt.Sprintf("%s:%s:%s:%s", srcNodeID, dstNodeID, edge.LocalInterface, edge.RemoteInterface)
+				edgeKey := makeEdgeKeyWithInterfaces(srcNodeID, dstNodeID, edge.LocalInterface, edge.RemoteInterface)
 				if processedEdges[edgeKey] {
 					continue
 				}
@@ -302,6 +325,14 @@ func makeEdgeKey(nodeA, nodeB string) string {
 		return nodeA + ":" + nodeB
 	}
 	return nodeB + ":" + nodeA
+}
+
+// makeEdgeKeyWithInterfaces creates a canonical key for an edge with interfaces
+func makeEdgeKeyWithInterfaces(nodeA, nodeB, ifaceA, ifaceB string) string {
+	if nodeA < nodeB {
+		return fmt.Sprintf("%s:%s:%s:%s", nodeA, nodeB, ifaceA, ifaceB)
+	}
+	return fmt.Sprintf("%s:%s:%s:%s", nodeB, nodeA, ifaceB, ifaceA)
 }
 
 // getNetworkColor returns a color based on speed and RDMA presence
