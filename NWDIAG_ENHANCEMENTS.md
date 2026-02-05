@@ -1,7 +1,67 @@
 # PlantUML nwdiag Export Enhancements
 
 ## Date
-2026-02-05 23:30
+2026-02-05 23:30 (Updated: 2026-02-05 23:45)
+
+## Updates (2026-02-05 23:45)
+
+### Issues Fixed
+1. **Segment speed calculation**: Networks showed incorrect speed (10 Gbps instead of 1 Gbps)
+   - Root cause: Using maximum speed across all interfaces including bridges with inflated speeds
+   - Fix: Use most common speed (mode) instead of maximum
+   - Result: Segment 10.102.73.0/24 now correctly shows 1000 Mbps (12 nodes with 1G vs 3 with 10G)
+
+2. **RDMA links missing**: Point-to-point RDMA links were not appearing in diagrams
+   - Root cause: Edges between nodes in same segment were marked as processed regardless of interface
+   - Fix: Track processed edges per specific interface pair, not just node pair
+   - Result: RDMA links (p2p1, p3p1, p8p1) now appear as peer networks with sky blue color
+
+### Technical Changes
+
+#### Segment Speed Algorithm
+**Before**: Use maximum RemoteSpeed
+```go
+if edge.RemoteSpeed > maxSpeed {
+    maxSpeed = edge.RemoteSpeed
+}
+```
+
+**After**: Use most common speed (mode)
+```go
+speeds := make(map[int]int) // speed -> count
+for _, edge := range segment.EdgeInfo {
+    if edge.RemoteSpeed > 0 {
+        speeds[edge.RemoteSpeed]++
+    }
+}
+// Find mode
+for speed, count := range speeds {
+    if count > maxCount {
+        segmentSpeed = speed
+    }
+}
+```
+
+**Rationale**: Bridge interfaces often report higher speeds than underlying physical interfaces. Using the mode provides more accurate representation of actual segment speed.
+
+#### Edge Processing for P2P Networks
+**Before**: Track processed edges by node pair only
+```go
+edgeKey := makeEdgeKey(nodeA, nodeB)
+processedEdges[edgeKey] = true
+```
+
+**After**: Track processed edges by node pair AND interface pair
+```go
+edgeKey := fmt.Sprintf("%s:%s:%s:%s", nodeA, nodeB, ifaceA, ifaceB)
+processedEdges[edgeKey] = true
+```
+
+**Rationale**: Nodes can have multiple connections on different interfaces:
+- em1/br112 → Ethernet segment (10.102.73.0/24)
+- p2p1 → RDMA point-to-point link
+
+Both should appear in the diagram.
 
 ## Problem
 The initial PlantUML nwdiag export implementation (from checkpoint 012) had several limitations:

@@ -14,7 +14,8 @@ func ExportNwdiag(nodes map[string]*graph.Node, edges map[string]map[string][]*g
 	sb.WriteString("@startuml\n")
 	sb.WriteString("nwdiag {\n")
 
-	// Track which node pairs have been added to segments or peer networks
+	// Track which node pairs on which interfaces have been added to segments
+	// Key: "nodeA:nodeB:interfaceA:interfaceB"
 	processedEdges := make(map[string]bool)
 
 	// Export each network segment
@@ -28,35 +29,45 @@ func ExportNwdiag(nodes map[string]*graph.Node, edges map[string]map[string][]*g
 		}
 
 		// Determine network speed and color
-		var maxSpeed int
+		// Collect all speeds from segment members
+		speeds := make(map[int]int) // speed -> count
 		hasRDMA := false
 		for _, nodeID := range segment.ConnectedNodes {
 			if edge, ok := segment.EdgeInfo[nodeID]; ok {
-				if edge.LocalSpeed > maxSpeed {
-					maxSpeed = edge.LocalSpeed
+				// For segments, RemoteSpeed is the speed of the remote node's interface on this segment
+				if edge.RemoteSpeed > 0 {
+					speeds[edge.RemoteSpeed]++
 				}
-				if edge.RemoteSpeed > maxSpeed {
-					maxSpeed = edge.RemoteSpeed
-				}
-				if edge.LocalRDMADevice != "" || edge.RemoteRDMADevice != "" {
+				if edge.RemoteRDMADevice != "" {
 					hasRDMA = true
 				}
 			}
 		}
 
-		networkColor := getNetworkColor(maxSpeed, hasRDMA)
+		// Use the most common speed (mode) as the segment speed
+		// This handles cases where bridge interfaces report higher speeds than physical interfaces
+		var segmentSpeed int
+		var maxCount int
+		for speed, count := range speeds {
+			if count > maxCount {
+				segmentSpeed = speed
+				maxCount = count
+			}
+		}
+
+		networkColor := getNetworkColor(segmentSpeed, hasRDMA)
 		
 		sb.WriteString(fmt.Sprintf("  network %s {\n", networkName))
 
 		// Add network address with speed if available
 		if segment.NetworkPrefix != "" {
-			if maxSpeed > 0 {
-				sb.WriteString(fmt.Sprintf("    address = \"%s (%d Mbps)\"\n", segment.NetworkPrefix, maxSpeed))
+			if segmentSpeed > 0 {
+				sb.WriteString(fmt.Sprintf("    address = \"%s (%d Mbps)\"\n", segment.NetworkPrefix, segmentSpeed))
 			} else {
 				sb.WriteString(fmt.Sprintf("    address = \"%s\"\n", segment.NetworkPrefix))
 			}
-		} else if maxSpeed > 0 {
-			sb.WriteString(fmt.Sprintf("    address = \"%d Mbps\"\n", maxSpeed))
+		} else if segmentSpeed > 0 {
+			sb.WriteString(fmt.Sprintf("    address = \"%d Mbps\"\n", segmentSpeed))
 		}
 
 		// Add color
@@ -145,17 +156,39 @@ func ExportNwdiag(nodes map[string]*graph.Node, edges map[string]map[string][]*g
 			}
 
 			sb.WriteString("];\n")
-
-			// Mark all edges within this segment as processed
-			for _, otherNodeID := range segment.ConnectedNodes {
-				if nodeID != otherNodeID {
-					edgeKey := makeEdgeKey(nodeID, otherNodeID)
-					processedEdges[edgeKey] = true
-				}
-			}
 		}
 
 		sb.WriteString("  }\n")
+		
+		// Mark edges in this segment as processed
+		// Build a map of which interface each node uses in this segment
+		nodeInterfaces := make(map[string]string)
+		for nodeID, edge := range segment.EdgeInfo {
+			if edge.RemoteInterface != "" {
+				nodeInterfaces[nodeID] = edge.RemoteInterface
+			} else if edge.LocalInterface != "" {
+				// For local node, use LocalInterface
+				nodeInterfaces[nodeID] = edge.LocalInterface
+			}
+		}
+		
+		// Mark all pairs in this segment with their interfaces as processed
+		for i, nodeA := range segment.ConnectedNodes {
+			for j, nodeB := range segment.ConnectedNodes {
+				if i >= j {
+					continue
+				}
+				ifaceA := nodeInterfaces[nodeA]
+				ifaceB := nodeInterfaces[nodeB]
+				if ifaceA != "" && ifaceB != "" {
+					// Mark both directions with their specific interfaces
+					key1 := fmt.Sprintf("%s:%s:%s:%s", nodeA, nodeB, ifaceA, ifaceB)
+					key2 := fmt.Sprintf("%s:%s:%s:%s", nodeB, nodeA, ifaceB, ifaceA)
+					processedEdges[key1] = true
+					processedEdges[key2] = true
+				}
+			}
+		}
 	}
 
 	// Add point-to-point links as peer networks
@@ -173,86 +206,87 @@ func ExportNwdiag(nodes map[string]*graph.Node, edges map[string]map[string][]*g
 				continue
 			}
 
-			// Check if this edge was already processed as part of a segment
-			edgeKey := makeEdgeKey(srcNodeID, dstNodeID)
-			if processedEdges[edgeKey] {
-				continue
-			}
-			processedEdges[edgeKey] = true
-
-			// This is a point-to-point link
-			edge := edgeList[0] // Use first edge
-			srcNode := nodes[srcNodeID]
-			dstNode := nodes[dstNodeID]
-			if srcNode == nil || dstNode == nil {
-				continue
-			}
-
-			// Determine if this is RDMA
-			hasRDMA := edge.LocalRDMADevice != "" || edge.RemoteRDMADevice != ""
-			
-			// Determine speed
-			maxSpeed := edge.LocalSpeed
-			if edge.RemoteSpeed > maxSpeed {
-				maxSpeed = edge.RemoteSpeed
-			}
-
-			networkColor := getNetworkColor(maxSpeed, hasRDMA)
-			
-			peerNetworkName := fmt.Sprintf("p2p_%d", peerNetworkIdx)
-			peerNetworkIdx++
-
-			sb.WriteString(fmt.Sprintf("  network %s {\n", peerNetworkName))
-			
-			// Add address with speed for peer network
-			if maxSpeed > 0 {
-				sb.WriteString(fmt.Sprintf("    address = \"P2P (%d Mbps", maxSpeed))
-				if hasRDMA {
-					sb.WriteString(", RDMA")
+			// Process each edge separately (nodes can have multiple edges on different interfaces)
+			for _, edge := range edgeList {
+				// Check if this specific edge was already processed as part of a segment
+				edgeKey := fmt.Sprintf("%s:%s:%s:%s", srcNodeID, dstNodeID, edge.LocalInterface, edge.RemoteInterface)
+				if processedEdges[edgeKey] {
+					continue
 				}
-				sb.WriteString(")\"\n")
-			}
+				processedEdges[edgeKey] = true
 
-			// Add color
-			if networkColor != "" {
-				sb.WriteString(fmt.Sprintf("    color = \"%s\"\n", networkColor))
-			}
-
-			// Add source node
-			srcHostname := sanitizeHostname(srcNode.Hostname)
-			srcAddrStr := strings.Split(edge.LocalAddress, "%")[0]
-			if edge.LocalInterface != "" {
-				srcAddrStr += " (" + edge.LocalInterface
-				if edge.LocalRDMADevice != "" {
-					srcAddrStr += fmt.Sprintf(", %s", edge.LocalRDMADevice)
+				srcNode := nodes[srcNodeID]
+				dstNode := nodes[dstNodeID]
+				if srcNode == nil || dstNode == nil {
+					continue
 				}
-				srcAddrStr += ")"
-			}
-			sb.WriteString(fmt.Sprintf("    %s [address = \"%s\", description = \"%s\"", 
-				srcHostname, srcAddrStr, srcNode.Hostname))
-			if srcNode.IsLocal {
-				sb.WriteString(", color = \"#90EE90\"")
-			}
-			sb.WriteString("];\n")
 
-			// Add destination node
-			dstHostname := sanitizeHostname(dstNode.Hostname)
-			dstAddrStr := strings.Split(edge.RemoteAddress, "%")[0]
-			if edge.RemoteInterface != "" {
-				dstAddrStr += " (" + edge.RemoteInterface
-				if edge.RemoteRDMADevice != "" {
-					dstAddrStr += fmt.Sprintf(", %s", edge.RemoteRDMADevice)
+				// Determine if this is RDMA
+				hasRDMA := edge.LocalRDMADevice != "" || edge.RemoteRDMADevice != ""
+				
+				// Determine speed
+				maxSpeed := edge.LocalSpeed
+				if edge.RemoteSpeed > maxSpeed {
+					maxSpeed = edge.RemoteSpeed
 				}
-				dstAddrStr += ")"
-			}
-			sb.WriteString(fmt.Sprintf("    %s [address = \"%s\", description = \"%s\"",
-				dstHostname, dstAddrStr, dstNode.Hostname))
-			if dstNode.IsLocal {
-				sb.WriteString(", color = \"#90EE90\"")
-			}
-			sb.WriteString("];\n")
 
-			sb.WriteString("  }\n")
+				networkColor := getNetworkColor(maxSpeed, hasRDMA)
+				
+				peerNetworkName := fmt.Sprintf("p2p_%d", peerNetworkIdx)
+				peerNetworkIdx++
+
+				sb.WriteString(fmt.Sprintf("  network %s {\n", peerNetworkName))
+				
+				// Add address with speed for peer network
+				if maxSpeed > 0 {
+					sb.WriteString(fmt.Sprintf("    address = \"P2P (%d Mbps", maxSpeed))
+					if hasRDMA {
+						sb.WriteString(", RDMA")
+					}
+					sb.WriteString(")\"\n")
+				}
+
+				// Add color
+				if networkColor != "" {
+					sb.WriteString(fmt.Sprintf("    color = \"%s\"\n", networkColor))
+				}
+
+				// Add source node
+				srcHostname := sanitizeHostname(srcNode.Hostname)
+				srcAddrStr := strings.Split(edge.LocalAddress, "%")[0]
+				if edge.LocalInterface != "" {
+					srcAddrStr += " (" + edge.LocalInterface
+					if edge.LocalRDMADevice != "" {
+						srcAddrStr += fmt.Sprintf(", %s", edge.LocalRDMADevice)
+					}
+					srcAddrStr += ")"
+				}
+				sb.WriteString(fmt.Sprintf("    %s [address = \"%s\", description = \"%s\"", 
+					srcHostname, srcAddrStr, srcNode.Hostname))
+				if srcNode.IsLocal {
+					sb.WriteString(", color = \"#90EE90\"")
+				}
+				sb.WriteString("];\n")
+
+				// Add destination node
+				dstHostname := sanitizeHostname(dstNode.Hostname)
+				dstAddrStr := strings.Split(edge.RemoteAddress, "%")[0]
+				if edge.RemoteInterface != "" {
+					dstAddrStr += " (" + edge.RemoteInterface
+					if edge.RemoteRDMADevice != "" {
+						dstAddrStr += fmt.Sprintf(", %s", edge.RemoteRDMADevice)
+					}
+					dstAddrStr += ")"
+				}
+				sb.WriteString(fmt.Sprintf("    %s [address = \"%s\", description = \"%s\"",
+					dstHostname, dstAddrStr, dstNode.Hostname))
+				if dstNode.IsLocal {
+					sb.WriteString(", color = \"#90EE90\"")
+				}
+				sb.WriteString("];\n")
+
+				sb.WriteString("  }\n")
+			}
 		}
 	}
 
