@@ -10,9 +10,13 @@
   - Package installation includes user creation, systemd service, and proper permissions
   - Binary archives with documentation and configuration files
 - **Unit Tests**: Comprehensive test suite for core packages
-  - Configuration: 12 test cases for endpoint parsing and validation
+  - Configuration: 20 test cases with 89.4% coverage
+  - Graph operations: 18 test cases with 94.0% coverage (node/edge management, expiration, concurrency)
   - Discovery packets: 6 test cases for JSON serialization and neighbor information
-  - All tests passing with good coverage of critical data structures
+  - Discovery helpers: 11 test cases for interface detection, IPv6 parsing, RDMA device mapping
+  - Total: 55 unit tests + 5 integration tests = 60 tests, all passing
+  - Excellent coverage of critical components: graph (94.0%), config (89.4%), discovery (36.0%)
+  - Thread-safety validated with concurrent access tests
   - See UNIT_TESTS.md for details
 
 ### Changed
