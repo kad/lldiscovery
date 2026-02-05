@@ -2,8 +2,11 @@ package config
 
 import (
 	"encoding/json"
+	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -43,7 +46,7 @@ func Default() *Config {
 		IncludeNeighbors: false,
 		Telemetry: TelemetryConfig{
 			Enabled:       false,
-			Endpoint:      "localhost:4317",
+			Endpoint:      "grpc://localhost:4317",
 			Protocol:      "grpc",
 			Insecure:      true,
 			EnableTraces:  true,
@@ -144,6 +147,59 @@ func Load(path string) (*Config, error) {
 	if rawConfig.Telemetry.Endpoint != "" || rawConfig.Telemetry.Enabled {
 		cfg.Telemetry = rawConfig.Telemetry
 	}
+	
+	// Parse endpoint URL to extract protocol if needed
+	if err := cfg.Telemetry.ParseEndpoint(); err != nil {
+		return nil, fmt.Errorf("invalid telemetry endpoint: %w", err)
+	}
 
 	return cfg, nil
+}
+
+// ParseEndpoint parses the endpoint URL and extracts protocol and address.
+// Supports formats:
+//   - grpc://host:port (default port 4317)
+//   - http://host:port (default port 4318)
+//   - https://host:port (default port 4318)
+//   - host:port (assumes grpc://, port 4317 if not specified)
+func (t *TelemetryConfig) ParseEndpoint() error {
+	if t.Endpoint == "" {
+		return nil
+	}
+	
+	endpoint := t.Endpoint
+	
+	// If no scheme, check if it looks like a URL pattern
+	if !strings.Contains(endpoint, "://") {
+		// If it's just host:port or host, assume grpc://
+		endpoint = "grpc://" + endpoint
+	}
+	
+	u, err := url.Parse(endpoint)
+	if err != nil {
+		return fmt.Errorf("failed to parse endpoint URL: %w", err)
+	}
+	
+	// Extract protocol from scheme
+	switch u.Scheme {
+	case "grpc":
+		t.Protocol = "grpc"
+		// Add default port if not specified
+		if u.Port() == "" {
+			u.Host = u.Hostname() + ":4317"
+		}
+	case "http", "https":
+		t.Protocol = "http"
+		// Add default port if not specified
+		if u.Port() == "" {
+			u.Host = u.Hostname() + ":4318"
+		}
+	default:
+		return fmt.Errorf("unsupported protocol scheme: %s (use grpc://, http://, or https://)", u.Scheme)
+	}
+	
+	// Update endpoint to be just host:port
+	t.Endpoint = u.Host
+	
+	return nil
 }

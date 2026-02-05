@@ -9,7 +9,18 @@
   - Automated GitHub releases with GitHub Actions
   - Package installation includes user creation, systemd service, and proper permissions
   - Binary archives with documentation and configuration files
-- **CLI Flag Configuration**: All configuration parameters now available as CLI flags
+
+### Changed
+
+- **Enhanced OpenTelemetry endpoint configuration**:
+  - URL-based endpoint format with automatic protocol detection
+  - Supports `grpc://host:port` (default port 4317) and `http://host:port` (default port 4318)
+  - Legacy `host:port` format still supported (assumes gRPC)
+  - Removed separate `-telemetry-protocol` flag (now derived from endpoint URL)
+  - Examples updated to show both gRPC and HTTP endpoints
+- Enhanced version output to include commit hash and build date
+
+### Previous Features
   - Timing: `-send-interval`, `-node-timeout`, `-export-interval`
   - Network: `-multicast-address`, `-multicast-port`
   - Output: `-output-file`, `-http-address`

@@ -6,14 +6,15 @@ lldiscovery includes built-in OpenTelemetry support for observability through di
 
 ## Configuration
 
-Enable telemetry in your configuration file:
+### Endpoint URL Format
+
+The `endpoint` field accepts URL-formatted endpoints for automatic protocol detection:
 
 ```json
 {
   "telemetry": {
     "enabled": true,
-    "endpoint": "localhost:4317",
-    "protocol": "grpc",
+    "endpoint": "grpc://localhost:4317",
     "insecure": true,
     "enable_traces": true,
     "enable_metrics": true,
@@ -22,15 +23,47 @@ Enable telemetry in your configuration file:
 }
 ```
 
+**Supported formats:**
+
+1. **gRPC (default port 4317):**
+   ```
+   "endpoint": "grpc://localhost:4317"      // explicit port
+   "endpoint": "grpc://localhost"           // default port 4317
+   "endpoint": "grpc://otel.example.com"    // default port 4317
+   ```
+
+2. **HTTP (default port 4318):**
+   ```
+   "endpoint": "http://localhost:4318"      // explicit port
+   "endpoint": "http://localhost"           // default port 4318
+   "endpoint": "https://otel.example.com"   // default port 4318 (TLS)
+   ```
+
+3. **Legacy format (assumes gRPC):**
+   ```
+   "endpoint": "localhost:4317"             // assumed grpc://
+   "endpoint": "localhost"                  // assumed grpc://localhost:4317
+   ```
+
+The protocol is automatically detected from the URL scheme and default ports are applied if not specified.
+
 ### Configuration Options
 
-- `enabled`: Enable/disable all telemetry (default: `false`)
-- `endpoint`: OTLP collector endpoint (default: `localhost:4317`)
-- `protocol`: Transport protocol - `grpc` or `http` (default: `grpc`)
-- `insecure`: Skip TLS verification (default: `true` for localhost)
-- `enable_traces`: Enable distributed tracing (default: `true`)
-- `enable_metrics`: Enable metrics export (default: `true`)
-- `enable_logs`: Enable log export (default: `false`)
+- **`enabled`** (bool): Enable/disable all telemetry
+  - Default: `false`
+- **`endpoint`** (string): OpenTelemetry collector endpoint URL
+  - Format: `protocol://host:port`
+  - Supported protocols: `grpc://` (default port 4317), `http://`, `https://` (default port 4318)
+  - Legacy format: `host:port` (assumes gRPC)
+  - Default: `"grpc://localhost:4317"`
+- **`insecure`** (bool): Use insecure connection (no TLS)
+  - Default: `true`
+- **`enable_traces`** (bool): Enable distributed tracing
+  - Default: `true`
+- **`enable_metrics`** (bool): Enable metrics export
+  - Default: `true`
+- **`enable_logs`** (bool): Enable log export
+  - Default: `false`
 
 ## Traces
 
@@ -375,6 +408,66 @@ sdktrace.WithBatcher(exporter,
 Set `enabled: false` in config, or remove telemetry section entirely.
 
 ## Examples
+
+### gRPC Endpoint (Default)
+
+```json
+{
+  "telemetry": {
+    "enabled": true,
+    "endpoint": "grpc://localhost:4317",
+    "insecure": true,
+    "enable_traces": true,
+    "enable_metrics": true
+  }
+}
+```
+
+### HTTP Endpoint
+
+```json
+{
+  "telemetry": {
+    "enabled": true,
+    "endpoint": "http://localhost:4318",
+    "insecure": true,
+    "enable_traces": true,
+    "enable_metrics": true
+  }
+}
+```
+
+### HTTPS Endpoint (TLS)
+
+```json
+{
+  "telemetry": {
+    "enabled": true,
+    "endpoint": "https://otel.example.com:4318",
+    "insecure": false,
+    "enable_traces": true,
+    "enable_metrics": true
+  }
+}
+```
+
+### CLI Flags
+
+Override endpoint via command line:
+
+```bash
+# gRPC endpoint
+lldiscovery -telemetry-enabled -telemetry-endpoint grpc://localhost:4317
+
+# HTTP endpoint
+lldiscovery -telemetry-enabled -telemetry-endpoint http://localhost:4318
+
+# HTTPS with TLS
+lldiscovery -telemetry-enabled -telemetry-endpoint https://otel.example.com:4318
+
+# Legacy format (assumes gRPC)
+lldiscovery -telemetry-enabled -telemetry-endpoint localhost:4317
+```
 
 ### Minimal Setup (gRPC)
 

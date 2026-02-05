@@ -10,8 +10,7 @@
   "include_neighbors": false,
   "telemetry": {
     "enabled": false,
-    "endpoint": "localhost:4317",
-    "protocol": "grpc",
+    "endpoint": "grpc://localhost:4317",
     "insecure": true,
     "enable_traces": true,
     "enable_metrics": true,

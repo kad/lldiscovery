@@ -205,8 +205,7 @@ Enable observability with distributed tracing and metrics via config file:
 {
   "telemetry": {
     "enabled": true,
-    "endpoint": "localhost:4317",
-    "protocol": "grpc",
+    "endpoint": "grpc://localhost:4317",
     "insecure": true,
     "enable_traces": true,
     "enable_metrics": true,
@@ -219,31 +218,18 @@ Or via CLI flags:
 ```bash
 ./lldiscovery \
   -telemetry-enabled \
-  -telemetry-endpoint localhost:4317 \
-  -telemetry-protocol grpc \
+  -telemetry-endpoint grpc://localhost:4317 \
   -telemetry-traces \
   -telemetry-metrics
 ```
 
-See `OPENTELEMETRY.md` for complete documentation.
-
-### OpenTelemetry
-
-Enable observability with distributed tracing and metrics:
-
-```json
-{
-  "telemetry": {
-    "enabled": true,
-    "endpoint": "localhost:4317",
-    "protocol": "grpc",
-    "insecure": true,
-    "enable_traces": true,
-    "enable_metrics": true,
-    "enable_logs": false
-  }
-}
-```
+**Endpoint formats:**
+- `grpc://localhost:4317` (gRPC with explicit port)
+- `grpc://localhost` (gRPC with default port 4317)
+- `http://localhost:4318` (HTTP with explicit port)
+- `http://localhost` (HTTP with default port 4318)
+- `https://otel.example.com` (HTTPS with default port 4318)
+- `localhost:4317` (legacy format, assumes gRPC)
 
 See `OPENTELEMETRY.md` for complete documentation.
 

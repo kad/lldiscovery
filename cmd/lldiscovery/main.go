@@ -47,8 +47,7 @@ var (
 	
 	// Telemetry parameters
 	telemetryEnabled       = flag.Bool("telemetry-enabled", false, "enable OpenTelemetry")
-	telemetryEndpoint      = flag.String("telemetry-endpoint", "", "OpenTelemetry endpoint (e.g., localhost:4317)")
-	telemetryProtocol      = flag.String("telemetry-protocol", "", "OpenTelemetry protocol (grpc or http)")
+	telemetryEndpoint      = flag.String("telemetry-endpoint", "", "OpenTelemetry endpoint URL (e.g., grpc://localhost:4317, http://localhost:4318)")
 	telemetryInsecure      = flag.Bool("telemetry-insecure", false, "use insecure connection for telemetry")
 	telemetryEnableTraces  = flag.Bool("telemetry-traces", false, "enable trace export")
 	telemetryEnableMetrics = flag.Bool("telemetry-metrics", false, "enable metrics export")
@@ -121,8 +120,11 @@ func main() {
 	if *telemetryEndpoint != "" {
 		cfg.Telemetry.Endpoint = *telemetryEndpoint
 	}
-	if *telemetryProtocol != "" {
-		cfg.Telemetry.Protocol = *telemetryProtocol
+	
+	// Parse endpoint URL to extract protocol and default ports
+	if err := cfg.Telemetry.ParseEndpoint(); err != nil {
+		fmt.Fprintf(os.Stderr, "invalid telemetry endpoint: %v\n", err)
+		os.Exit(1)
 	}
 
 	logger := setupLogger(cfg.LogLevel)
