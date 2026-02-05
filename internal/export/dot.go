@@ -42,14 +42,23 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 	var sb strings.Builder
 
 	sb.WriteString("graph lldiscovery {\n")
-	sb.WriteString("  rankdir=LR;\n")
+	sb.WriteString("  // Layout hints for better visualization\n")
+	if len(segments) > 0 {
+		sb.WriteString("  layout=neato;\n")  // Use neato for circular layout
+		sb.WriteString("  overlap=false;\n")
+		sb.WriteString("  splines=true;\n")
+	} else {
+		sb.WriteString("  rankdir=LR;\n")  // Left-to-right for non-segment graphs
+	}
 	sb.WriteString("  node [shape=box, style=rounded];\n")
 	sb.WriteString("  // Each machine is a subgraph (cluster) with interface nodes\n")
-	sb.WriteString("  // RDMA-to-RDMA connections shown in BLUE with thick lines\n")
-	sb.WriteString("  // Dashed lines indicate indirect connections\n")
+	sb.WriteString("  // Direct links: BOLD lines\n")
+	sb.WriteString("  // Indirect links: dashed lines\n")
+	sb.WriteString("  // RDMA-to-RDMA connections: BLUE with thick lines\n")
 	if len(segments) > 0 {
-		sb.WriteString("  // Network segments: yellow ellipses representing mutually connected node groups\n")
-		sb.WriteString("  // Individual links within segments are hidden\n")
+		sb.WriteString("  // Network segments: yellow ellipses in center, machines around periphery\n")
+		sb.WriteString("  // Segment connections: solid lines, thickness based on speed\n")
+		sb.WriteString("  // Individual links within segments: hidden\n")
 	}
 	sb.WriteString("\n")
 
@@ -189,7 +198,7 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 
 	// Add network segment nodes if provided
 	if len(segments) > 0 {
-		sb.WriteString("\n  // Network Segments\n")
+		sb.WriteString("\n  // Network Segments (positioned in center)\n")
 		for i, segment := range segments {
 			segmentNodeID := fmt.Sprintf("segment_%d", i)
 
@@ -208,8 +217,8 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 				segmentLabel += "\\n[RDMA]"
 			}
 
-			// Create segment node (ellipse, yellow)
-			sb.WriteString(fmt.Sprintf("  \"%s\" [label=\"%s\", shape=ellipse, style=filled, fillcolor=\"#ffffcc\"];\n",
+			// Create segment node (ellipse, yellow, with position hint for center)
+			sb.WriteString(fmt.Sprintf("  \"%s\" [label=\"%s\", shape=ellipse, style=filled, fillcolor=\"#ffffcc\", pos=\"0,0!\", pin=true];\n",
 				segmentNodeID, segmentLabel))
 
 			// Connect segment to each member node's interface
@@ -234,10 +243,14 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 						edgeLabel += fmt.Sprintf("\\n[%s]", edge.RemoteRDMADevice)
 					}
 
-					// Determine if this edge should be highlighted
-					styleAttr := "style=dotted, color=gray"
+					// Calculate line thickness based on speed
+					penwidth := calculatePenwidth(edge.RemoteSpeed)
+
+					// Solid lines with speed-based thickness for segment connections
+					styleAttr := fmt.Sprintf("style=solid, penwidth=%.1f, color=gray", penwidth)
 					if edge.RemoteRDMADevice != "" && edge.LocalRDMADevice != "" {
-						styleAttr = "style=dotted, color=blue, penwidth=2.0"
+						// RDMA segments get blue color
+						styleAttr = fmt.Sprintf("style=solid, penwidth=%.1f, color=blue", penwidth)
 					}
 
 					sb.WriteString(fmt.Sprintf("  \"%s\" -- \"%s\" [label=\"%s\", %s];\n",
@@ -247,7 +260,7 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 					// (shouldn't happen with proper segment detection, but handle gracefully)
 					for iface := range connectedInterfaces[nodeID] {
 						ifaceNodeID := fmt.Sprintf("%s__%s", nodeID, iface)
-						sb.WriteString(fmt.Sprintf("  \"%s\" -- \"%s\" [style=dotted, color=gray];\n",
+						sb.WriteString(fmt.Sprintf("  \"%s\" -- \"%s\" [style=solid, color=gray];\n",
 							segmentNodeID, ifaceNodeID))
 						break // Just connect to first interface
 					}
@@ -325,8 +338,13 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 
 				// Build edge attributes - highlight RDMA-to-RDMA connections and indirect edges
 				var edgeAttrs string
-				styleExtra := ""
-				if !edge.Direct {
+				var styleExtra string
+				
+				if edge.Direct {
+					// Direct links: bold (solid with thicker line)
+					styleExtra = ", style=\"bold\""
+				} else {
+					// Indirect links: dashed
 					styleExtra = ", style=\"dashed\""
 				}
 

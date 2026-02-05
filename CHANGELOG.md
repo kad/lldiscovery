@@ -3,6 +3,14 @@
 ## [Unreleased]
 
 ### Added
+- Enhanced DOT visualization with improved styling:
+  - Direct links now use bold style for clear visual distinction
+  - Segment-to-interface connections use solid lines with speed-based thickness
+  - Circular graph layout (neato engine) for topologies with segments
+  - Segment nodes positioned centrally with machines distributed around periphery
+  - Speed-based line thickness for all connections (1.0-5.0 based on 100 Mbps to 100+ Gbps)
+
+### Added
 
 - **Subgraph Visualization**: Improved DOT output for large topologies
   - Each machine rendered as a subgraph (cluster) with separate interface nodes

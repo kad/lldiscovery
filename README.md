@@ -315,8 +315,11 @@ Generate a PNG or SVG image from the DOT file:
 # Install graphviz
 sudo apt-get install graphviz
 
-# Generate visualization
+# Generate visualization with automatic layout
 dot -Tpng /var/lib/lldiscovery/topology.dot -o topology.png
+
+# Or use neato for circular layout (better for topologies with segments)
+neato -Tpng /var/lib/lldiscovery/topology.dot -o topology.png
 
 # Or SVG (recommended for large topologies)
 dot -Tsvg /var/lib/lldiscovery/topology.dot -o topology.svg
@@ -325,12 +328,22 @@ dot -Tsvg /var/lib/lldiscovery/topology.dot -o topology.svg
 watch -n 5 'dot -Tpng /var/lib/lldiscovery/topology.dot -o topology.png'
 ```
 
+**Visual Styling:**
+- **Direct connections**: Bold lines for physically connected links
+- **Indirect connections**: Dashed lines for transitively discovered neighbors
+- **Network segments**: Yellow ellipses positioned in center with machines around periphery
+- **Segment connections**: Solid lines with thickness based on link speed (thicker = faster)
+- **RDMA connections**: Blue color for RDMA-capable links
+- **Interface nodes**: Light blue fill for RDMA-capable interfaces
+- **Line thickness scale**: 1.0-5.0 based on 100 Mbps to 100+ Gbps
+
 **Subgraph Structure Benefits:**
 - **Scalability**: Large topologies (100+ hosts) remain readable
 - **Interface Clarity**: Easy to see which interfaces are connected
 - **Multi-Interface Support**: Machines with multiple connections clearly show all paths
 - **RDMA Visibility**: RDMA interfaces highlighted with light blue fill
 - **Network Segmentation**: VLANs and segments visible through interface grouping
+- **Circular Layout**: When segments detected, graph uses circular arrangement for clarity
 
 **Example Topology:**
 ```
