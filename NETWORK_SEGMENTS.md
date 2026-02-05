@@ -30,16 +30,44 @@ lldiscovery -show-segments
 
 ### Detection Algorithm
 
-1. **Group by Interface**: For local node, group all neighbors by local interface
-2. **Apply Threshold**: If 3+ neighbors exist on the same interface, create a segment
-3. **Collect Edge Info**: Store interface names, IPs, speeds, RDMA info for each connection
-4. **Generate Visualization**: Create segment nodes with detailed connection information
+1. **Scan All Edges**: Analyze all edges in the entire graph (not just local node)
+2. **Track Interface Usage**: For each interface name (e.g., "br112", "eth0"), track which nodes use it
+3. **Identify Segments**: If 3+ nodes share the same interface name, create a segment
+4. **Collect Edge Info**: Store connection details (IP, speed, RDMA) for local node's connections
+5. **Generate Visualization**: Create segment nodes showing shared connectivity
 
 ### Threshold
 
-- **Minimum neighbors**: 3+ (prevents creating segments for simple P2P connections)
-- **Includes both**: Direct edges (discovered locally) and indirect edges (learned from neighbors)
-- **Per-interface**: Segments detected independently for each local interface
+- **Minimum nodes**: 3+ total nodes using the same interface name
+- **Includes**: Direct edges (observed locally) and indirect edges (learned from neighbors)
+- **Global detection**: Finds segments even if local node doesn't participate
+- **Overlapping allowed**: A node can participate in multiple segments simultaneously
+
+### Examples of Detected Segments
+
+**Scenario 1: Local node directly connected**
+```
+Local node (em4) ← → Hosts A, B, C, D (various interfaces)
+Result: Segment detected on em4 with 5 nodes
+```
+
+**Scenario 2: Remote segment (overlapping)**
+```
+Hosts A, B, C all have br112 interface
+Hosts B, C, D all have eth0 interface
+Result: Two segments detected
+  - br112 segment: A, B, C
+  - eth0 segment: B, C, D
+Note: B and C participate in both segments
+```
+
+**Scenario 3: Indirect connectivity**
+```
+Local → Host A (learns about A-B-C on br112)
+Local → Host B (learns about A-B-C on br112)
+Local → Host C (learns about A-B-C on br112)
+Result: br112 segment detected even though local doesn't use br112
+```
 
 ### Edge Information Preserved
 

@@ -15,6 +15,18 @@
   - Dramatically improves readability for 100+ host topologies
   - Easier to trace which interfaces connect where
   - Better visual grouping of multi-interface hosts
+- **Enhanced Network Segment Detection**: Discovers ALL segments in topology
+  - **Overlapping segments**: Nodes can participate in multiple segments (e.g., br112 + eth0)
+  - **Global detection**: Finds segments even when local node doesn't participate
+  - **Indirect edges**: Detects segments visible through learned connectivity from neighbors
+  - Scans entire graph (not just local node's edges) for comprehensive detection
+  - Groups nodes by interface name across all hosts
+  - Threshold: 3+ nodes using same interface name
+  - Examples:
+    * Local node on em4 connects to 12 others → em4 segment
+    * Hosts A,B,C on br112 and B,C,D on eth0 → two overlapping segments detected
+    * Remote hosts connected on p2p1 → p2p1 segment found via indirect edges
+  - More accurate representation of actual network topology
 - **Network Segment Detection**: Identify and visualize shared network segments (switches/VLANs)
   - Detects when a host can reach 3+ neighbors on the same interface
   - Segments show interface name, node count, and RDMA capability

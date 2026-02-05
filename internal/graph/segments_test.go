@@ -63,7 +63,7 @@ func TestGetNetworkSegments_ThreeNeighbors(t *testing.T) {
 }
 
 // TestGetNetworkSegments_BelowThreshold verifies that segments with
-// fewer than 3 neighbors are not detected.
+// fewer than 3 total nodes are not detected.
 func TestGetNetworkSegments_BelowThreshold(t *testing.T) {
 	g := New()
 
@@ -71,13 +71,35 @@ func TestGetNetworkSegments_BelowThreshold(t *testing.T) {
 		"eth0": {IPAddress: "fe80::1"},
 	})
 
-	// Only 2 neighbors on eth0 (below threshold)
+	// Only 2 neighbors on eth0: total of 3 nodes (local + 2), which IS a segment
 	g.AddOrUpdate("machine-b", "host-b", "eth0", "fe80::2", "eth0", "", "", "", 0, true, "")
 	g.AddOrUpdate("machine-c", "host-c", "eth0", "fe80::3", "eth0", "", "", "", 0, true, "")
 
 	segments := g.GetNetworkSegments()
+	// With 3 total nodes on eth0, this forms a segment
+	if len(segments) != 1 {
+		t.Errorf("expected 1 segment (3 nodes on eth0), got %d", len(segments))
+	}
+	
+	if len(segments) > 0 && len(segments[0].ConnectedNodes) != 3 {
+		t.Errorf("expected 3 nodes in segment, got %d", len(segments[0].ConnectedNodes))
+	}
+}
+
+// TestGetNetworkSegments_TooFewNodes verifies that segments with only 2 nodes are not detected.
+func TestGetNetworkSegments_TooFewNodes(t *testing.T) {
+	g := New()
+
+	g.SetLocalNode("machine-a", "host-a", map[string]InterfaceDetails{
+		"eth0": {IPAddress: "fe80::1"},
+	})
+
+	// Only 1 neighbor on eth0: total of 2 nodes, below threshold
+	g.AddOrUpdate("machine-b", "host-b", "eth0", "fe80::2", "eth0", "", "", "", 0, true, "")
+
+	segments := g.GetNetworkSegments()
 	if len(segments) != 0 {
-		t.Errorf("expected no segments (need 3+ neighbors), got %d", len(segments))
+		t.Errorf("expected no segments (only 2 nodes), got %d", len(segments))
 	}
 }
 
