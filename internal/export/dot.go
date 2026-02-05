@@ -53,9 +53,12 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 	sb.WriteString("\n")
 
 	// Build map of edges that are part of segments (to hide them)
-	// We only hide edges from local node to segment members on the segment interface
-	segmentEdgeMap := make(map[string]bool)
+	// We hide edges from local node to segment members when the edge's local interface
+	// matches the segment's interface (meaning the connectivity is through that segment)
+	segmentEdgeMap := make(map[string]map[string]bool) // [nodeA:nodeB][interface] -> true
 	localNodeID := ""
+	segmentInterfaces := make(map[string]map[string]string) // [nodeA][nodeB] -> segment interface
+	
 	if len(segments) > 0 {
 		// Find local node ID
 		for nodeID, node := range nodes {
@@ -67,14 +70,28 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 		
 		if localNodeID != "" {
 			for _, segment := range segments {
-				// Mark edges from local node to segment members
-				// These are replaced by segment visualization
+				// Mark edges from local node to segment members on this specific interface
 				for _, nodeID := range segment.ConnectedNodes {
 					if nodeID != localNodeID {
+						// Store which interface this segment uses
+						if segmentInterfaces[localNodeID] == nil {
+							segmentInterfaces[localNodeID] = make(map[string]string)
+						}
+						segmentInterfaces[localNodeID][nodeID] = segment.Interface
+						
 						key1 := localNodeID + ":" + nodeID
 						key2 := nodeID + ":" + localNodeID
-						segmentEdgeMap[key1] = true
-						segmentEdgeMap[key2] = true
+						
+						if segmentEdgeMap[key1] == nil {
+							segmentEdgeMap[key1] = make(map[string]bool)
+						}
+						if segmentEdgeMap[key2] == nil {
+							segmentEdgeMap[key2] = make(map[string]bool)
+						}
+						
+						// Mark this edge on this interface as part of segment
+						segmentEdgeMap[key1][segment.Interface] = true
+						segmentEdgeMap[key2][segment.Interface] = true
 					}
 				}
 			}
@@ -214,20 +231,22 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 		}
 	}
 
-	// Add edges (excluding those in segments)
+	// Add edges (excluding those in segments on matching interfaces)
 	sb.WriteString("\n")
 	edgesAdded := make(map[string]bool) // Track to avoid showing both directions of same edge
 	for srcMachineID, dests := range edges {
 		for dstMachineID, edgeList := range dests {
-			// Check if this edge is part of a segment (if segments are enabled)
-			if len(segments) > 0 {
-				edgeKey := srcMachineID + ":" + dstMachineID
-				if segmentEdgeMap[edgeKey] {
-					continue // Skip edges within segments
-				}
-			}
-
 			for _, edge := range edgeList {
+				// Check if this edge is part of a segment (if segments are enabled)
+				if len(segments) > 0 {
+					edgeKey := srcMachineID + ":" + dstMachineID
+					// Check if this specific edge (on this interface) is part of a segment
+					if interfaceMap, exists := segmentEdgeMap[edgeKey]; exists {
+						if interfaceMap[edge.LocalInterface] {
+							continue // Skip this edge - it's represented by the segment
+						}
+					}
+				}
 				// Create a canonical edge key for deduplication (sorted + interface pair)
 				edgeKey := fmt.Sprintf("%s:%s--%s:%s", srcMachineID, edge.LocalInterface, dstMachineID, edge.RemoteInterface)
 				reverseKey := fmt.Sprintf("%s:%s--%s:%s", dstMachineID, edge.RemoteInterface, srcMachineID, edge.LocalInterface)

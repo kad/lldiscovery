@@ -471,21 +471,29 @@ Or in configuration:
   - Link speed (if available)
   - RDMA device information (if available)
   - Blue dotted lines for RDMA-to-RDMA connections
-- **Edge Hiding**: Only edges from local node to segment members are hidden (replaced by segment visualization)
+- **Smart Edge Hiding**: 
+  - Hides edges from local node to segment members **only when the edge uses the segment's interface**
+  - Example: If segment is on eth0, edge A:eth0→B:eth1 is hidden (goes through segment)
+  - Example: If segment is on eth0, edge A:eth1→B:eth2 is still shown (different interface)
 - **Preserved Edges**: 
-  - Edges between segment members (if they exist) are still shown
-  - All edges between hosts not in the same segment are shown normally
+  - All edges on different interfaces than the segment
+  - All edges between segment members
+  - All edges between non-segment hosts
 - **Default**: Disabled (opt-in feature)
 
 ### Example
 
-For a topology where host-a reaches host-b, host-c, and host-d all via eth0:
+For a topology where:
+- Host-a has both eth0 and eth1
+- Host-a reaches host-b, host-c, host-d via eth0 (forms segment)
+- Host-a also has direct connection to host-b via eth1
 
 Without `-show-segments`:
 ```
-host-a ---- host-b
-host-a ---- host-c
-host-a ---- host-d
+host-a:eth0 ---- host-b:eth0
+host-a:eth0 ---- host-c:eth0
+host-a:eth0 ---- host-d:eth0
+host-a:eth1 ---- host-b:eth1
 ```
 
 With `-show-segments`:
@@ -494,15 +502,11 @@ With `-show-segments`:
      [4 nodes]
     /    |    \
    /     |     \
-  b      c      d
+  b:eth0 c:eth0 d:eth0
  (info) (info) (info)
+
+host-a:eth1 ---- host-b:eth1  (still shown - different interface)
 ```
 
-Each connection shows:
-- Interface name (e.g., "eth0")
-- IP address (e.g., "fe80::2")  
-- Speed (e.g., "10000 Mbps")
-- RDMA device (e.g., "[mlx5_0]")
-
-If host-b and host-c are also directly connected (on a different interface), that edge is still shown.
+The segment hides only the eth0 connections (which go through the segment). The eth1 connection is preserved because it uses a different interface.
 

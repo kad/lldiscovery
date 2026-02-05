@@ -8,8 +8,10 @@
   - Detects when a host can reach 3+ neighbors on the same interface
   - Segments show interface name, node count, and RDMA capability
   - Preserves edge information: interface names, IP addresses, speeds, RDMA devices
-  - Hides only local-to-segment edges (replaced by segment visualization)
-  - Keeps all other edges: between segment members, between non-segment hosts
+  - **Smart edge hiding**: Only hides edges that match the segment's interface
+    - Edge A:eth0→B:eth1 hidden if segment on eth0 (goes through segment)
+    - Edge A:eth1→B:eth2 shown if segment on eth0 (different interface)
+  - Keeps all edges on different interfaces and between non-segment hosts
   - Visualizes segments as yellow ellipse nodes with detailed connection labels
   - RDMA-to-RDMA connections shown with blue dotted lines
   - Opt-in feature via `-show-segments` flag or `show_segments: true` in config

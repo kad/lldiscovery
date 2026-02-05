@@ -68,13 +68,34 @@ Each connection from segment to member node displays:
 - **RDMA-to-RDMA**: Blue dotted lines, thicker (penwidth=2.0)
 - **Edge labels**: Show interface, IP, speed, RDMA device
 
+### Edge Hiding Logic
+
+**Edges are hidden** when:
+- They connect local node to a segment member, AND
+- The edge's local interface matches the segment's interface
+
+**Edges are shown** when:
+- The edge uses a different interface than the segment
+- The edge connects nodes not in the segment
+- The edge connects between segment members (peer-to-peer)
+
+**Example**:
+```
+Segment on eth0 includes: A, B, C, D
+- A:eth0 → B:eth0 : HIDDEN (through segment)
+- A:eth0 → B:eth1 : HIDDEN (A's side uses segment interface)
+- A:eth1 → B:eth0 : SHOWN (A's side uses different interface)
+- B:eth0 → C:eth0 : SHOWN (peer-to-peer within segment)
+```
+
 ### Graph Structure
 
 ```
 Before (-show-segments OFF):
-    host-a ---- host-b (eth0, fe80::2, 10G, mlx5_0)
-    host-a ---- host-c (eth0, fe80::3, 10G, mlx5_1)  
-    host-a ---- host-d (eth0, fe80::4, 10G, mlx5_2)
+    host-a:eth0 ---- host-b:eth0 (fe80::2, 10G, mlx5_0)
+    host-a:eth0 ---- host-c:eth0 (fe80::3, 10G, mlx5_1)  
+    host-a:eth0 ---- host-d:eth0 (fe80::4, 10G, mlx5_2)
+    host-a:eth1 ---- host-b:eth1 (fe80::12, 10G)
 
 After (-show-segments ON):
          [segment: eth0]
@@ -82,12 +103,15 @@ After (-show-segments ON):
         /       |        \
     (details) (details) (details)
      host-b   host-c   host-d
+
+    host-a:eth1 ---- host-b:eth1 (still shown - different interface)
 ```
 
-**What's hidden**: Only edges from local node (host-a) to segment members.
+**What's hidden**: Edges from local node to segment members where the edge's local interface matches the segment interface.
 
 **What's shown**: 
-- All edges between segment members (if they exist)
+- Edges using different interfaces (A:eth1→B even if segment on A:eth0)
+- All edges between segment members (peer-to-peer connections)
 - All edges to/from hosts not in segments
 - Full edge information on segment connections
 
