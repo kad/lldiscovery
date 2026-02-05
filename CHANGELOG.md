@@ -3,6 +3,12 @@
 ## [Unreleased]
 
 ### Added
+- **Network Prefix-Based Segment Naming**: Segments now display IPv6 network prefixes (e.g., "2001:db8:1::/64") instead of interface names when global unicast addresses are available
+  - Daemon collects global unicast addresses from all interfaces
+  - Prefixes propagated through discovery protocol
+  - Segment detection chooses most common prefix as name hint
+  - Falls back to interface name if no prefixes available
+  - Interface name shown in parentheses for reference
 - Enhanced DOT visualization with improved styling:
   - Direct links now use bold style for clear visual distinction
   - Segment-to-interface connections use solid lines with speed-based thickness

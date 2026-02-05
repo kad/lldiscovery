@@ -202,8 +202,17 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 		for i, segment := range segments {
 			segmentNodeID := fmt.Sprintf("segment_%d", i)
 
-			// Build segment label with interface and node count
-			segmentLabel := fmt.Sprintf("segment: %s\\n%d nodes", segment.Interface, len(segment.ConnectedNodes))
+			// Build segment label - prefer network prefix over interface name
+			var segmentLabel string
+			if segment.NetworkPrefix != "" {
+				// Use network prefix as primary label
+				segmentLabel = fmt.Sprintf("%s\\n%d nodes", segment.NetworkPrefix, len(segment.ConnectedNodes))
+				// Add interface name as secondary info if different from prefix
+				segmentLabel += fmt.Sprintf("\\n(%s)", segment.Interface)
+			} else {
+				// Fall back to interface name
+				segmentLabel = fmt.Sprintf("segment: %s\\n%d nodes", segment.Interface, len(segment.ConnectedNodes))
+			}
 
 			// Check if all edges have RDMA
 			allHaveRDMA := true

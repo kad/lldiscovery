@@ -502,6 +502,7 @@ func (g *Graph) GetDirectNeighbors() []NeighborData {
 type NetworkSegment struct {
 	ID             string           // Unique ID for this segment
 	Interface      string           // Local interface name (e.g., "eth0")
+	NetworkPrefix  string           // Network prefix hint (e.g., "2001:db8:1::/64"), empty if unavailable
 	ConnectedNodes []string         // Machine IDs of nodes in this segment
 	EdgeInfo       map[string]*Edge // Map of nodeID -> edge info for connections to segment
 }
@@ -560,9 +561,13 @@ func (g *Graph) GetNetworkSegments() []NetworkSegment {
 			
 			sort.Strings(nodeIDs)
 
+			// Determine network prefix hint
+			networkPrefix := g.getMostCommonPrefix(nodeIDs, edgeInfo)
+
 			segments = append(segments, NetworkSegment{
 				ID:             fmt.Sprintf("segment_%d", segmentID),
 				Interface:      localIface,
+				NetworkPrefix:  networkPrefix,
 				ConnectedNodes: nodeIDs,
 				EdgeInfo:       edgeInfo,
 			})
@@ -684,9 +689,13 @@ func (g *Graph) GetNetworkSegments() []NetworkSegment {
 
 			sort.Strings(component)
 
+			// Determine network prefix hint for this component
+			networkPrefix := g.getMostCommonPrefix(component, componentEdgeInfo)
+
 			segments = append(segments, NetworkSegment{
 				ID:             fmt.Sprintf("segment_%d", segmentID),
 				Interface:      ifaceName,
+				NetworkPrefix:  networkPrefix,
 				ConnectedNodes: component,
 				EdgeInfo:       componentEdgeInfo,
 			})
@@ -695,6 +704,55 @@ func (g *Graph) GetNetworkSegments() []NetworkSegment {
 	}
 
 	return segments
+}
+
+// getMostCommonPrefix returns the most frequently occurring network prefix
+// from the given set of nodes and their edges. Returns empty string if no prefixes found.
+func (g *Graph) getMostCommonPrefix(nodeIDs []string, edgeInfo map[string]*Edge) string {
+	prefixCount := make(map[string]int)
+	
+	// Collect prefixes from each node's interface
+	for _, nodeID := range nodeIDs {
+		var prefixes []string
+		
+		if nodeID == g.localNode.MachineID {
+			// For local node, get prefixes from the edge's local interface
+			for _, edge := range edgeInfo {
+				if localDetails, ok := g.localNode.Interfaces[edge.LocalInterface]; ok {
+					prefixes = localDetails.GlobalPrefixes
+					break // All edges use same local interface
+				}
+			}
+		} else {
+			// For remote nodes, get prefixes from the edge's remote interface
+			if edge, ok := edgeInfo[nodeID]; ok {
+				if remoteNode, exists := g.nodes[nodeID]; exists {
+					if remoteDetails, ok := remoteNode.Interfaces[edge.RemoteInterface]; ok {
+						prefixes = remoteDetails.GlobalPrefixes
+					}
+				}
+			}
+		}
+		
+		// Count each prefix
+		for _, prefix := range prefixes {
+			if prefix != "" {
+				prefixCount[prefix]++
+			}
+		}
+	}
+	
+	// Find most common prefix
+	maxCount := 0
+	mostCommon := ""
+	for prefix, count := range prefixCount {
+		if count > maxCount {
+			maxCount = count
+			mostCommon = prefix
+		}
+	}
+	
+	return mostCommon
 }
 
 func (g *Graph) isCompleteIsland(ownerID string, neighborIDs []string) bool {

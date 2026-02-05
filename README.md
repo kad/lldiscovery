@@ -13,6 +13,10 @@ Network discovery daemon for VLAN-segmented environments using IPv6 link-local m
 - **Dynamic graph with edges**: Shows connections between nodes with interface labels and IP addresses
 - **Multi-edge support**: Handles multiple interfaces between same hosts (redundant/bonded connections)
 - **Smart interface display**: Only shows interfaces with active connections in the graph
+- **Network prefix detection**: Collects global unicast IPv6 prefixes for intelligent segment naming
+  - Segments labeled with network prefixes (e.g., "2001:db8:100::/64") when available
+  - Falls back to interface names for networks without global addresses
+  - Consistent segment naming across all hosts in the topology
 - **Transitive discovery**: Optional sharing of neighbor information to see complete topology including indirect connections
 - **Local node tracking**: Includes the local host in the topology graph
 - **RDMA/InfiniBand support**: Detects RDMA devices and includes node_guid, sys_image_guid, and device names
