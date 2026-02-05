@@ -76,7 +76,7 @@ Default values (all configurable via JSON):
 - `export_interval`: 60s
 - `multicast_address`: ff02::4c4c:6469 (custom address, not ff02::1!)
 - `multicast_port`: 9999
-- `http_address`: :8080
+- `http_address`: :6469
 - `output_file`: /var/lib/lldiscovery/topology.dot
 
 ### Testing
@@ -123,7 +123,7 @@ make build
 ./lldiscovery -log-level debug
 
 # In another terminal
-curl http://localhost:8080/graph.dot | dot -Tpng -o topology.png
+curl http://localhost:6469/graph.dot | dot -Tpng -o topology.png
 ```
 
 ## Next Steps (Future Enhancements)

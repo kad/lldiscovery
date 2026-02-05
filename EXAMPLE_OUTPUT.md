@@ -6,7 +6,7 @@
 $ ./lldiscovery -log-level info
 time=2026-02-04T22:00:00.000+00:00 level=INFO msg="starting lldiscovery" version=dev send_interval=30s node_timeout=2m0s export_interval=1m0s output_file=./topology.dot telemetry_enabled=false
 time=2026-02-04T22:00:00.001+00:00 level=INFO msg="local node added to graph" hostname=server01.example.com interfaces=2
-time=2026-02-04T22:00:00.002+00:00 level=INFO msg="starting HTTP server" address=:8080
+time=2026-02-04T22:00:00.002+00:00 level=INFO msg="starting HTTP server" address=:6469
 time=2026-02-04T22:00:00.003+00:00 level=INFO msg="joined multicast group" interface=eth0
 time=2026-02-04T22:00:00.003+00:00 level=INFO msg="joined multicast group" interface=eth1
 ```
@@ -30,7 +30,7 @@ When a daemon sends a discovery packet, it looks like this:
 ### Get Current Graph (JSON)
 
 ```bash
-$ curl -s http://localhost:8080/graph | jq
+$ curl -s http://localhost:6469/graph | jq
 {
   "a1b2c3d4e5f6789012345678901234567890abcd": {
     "Hostname": "server01.example.com",
@@ -57,7 +57,7 @@ $ curl -s http://localhost:8080/graph | jq
 ### Get DOT Format
 
 ```bash
-$ curl -s http://localhost:8080/graph.dot
+$ curl -s http://localhost:6469/graph.dot
 graph lldiscovery {
   rankdir=LR;
   node [shape=box, style=rounded];
@@ -85,13 +85,13 @@ graph lldiscovery {
 ### Health Check
 
 ```bash
-$ curl -s http://localhost:8080/health
+$ curl -s http://localhost:6469/health
 {"status":"ok"}
 ```
 
 ## Visualization Example
 
-After running `curl http://localhost:8080/graph.dot | dot -Tpng -o topology.png`:
+After running `curl http://localhost:6469/graph.dot | dot -Tpng -o topology.png`:
 
 ```
 ┌─────────────────────────────┐
@@ -142,7 +142,7 @@ This creates **two separate edges** between the same pair of hosts, each showing
 ```bash
 $ sudo journalctl -u lldiscovery -f
 Feb 04 22:00:00 server01 lldiscovery[1234]: time=2026-02-04T22:00:00.000+00:00 level=INFO msg="starting lldiscovery" version=1.0.0
-Feb 04 22:00:00 server01 lldiscovery[1234]: time=2026-02-04T22:00:00.001+00:00 level=INFO msg="starting HTTP server" address=:8080
+Feb 04 22:00:00 server01 lldiscovery[1234]: time=2026-02-04T22:00:00.001+00:00 level=INFO msg="starting HTTP server" address=:6469
 Feb 04 22:00:30 server01 lldiscovery[1234]: time=2026-02-04T22:00:30.123+00:00 level=INFO msg="exported graph" nodes=3 file=/var/lib/lldiscovery/topology.dot
 Feb 04 22:02:15 server01 lldiscovery[1234]: time=2026-02-04T22:02:15.456+00:00 level=INFO msg="removed expired nodes" count=1
 ```

@@ -5,7 +5,7 @@
   "multicast_address": "ff02::4c4c:6469",
   "multicast_port": 9999,
   "output_file": "/var/lib/lldiscovery/topology.dot",
-  "http_address": ":8080",
+  "http_address": ":6469",
   "log_level": "info",
   "include_neighbors": false,
   "telemetry": {

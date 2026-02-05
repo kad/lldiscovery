@@ -233,10 +233,10 @@ On systems with IB:
 ./lldiscovery -log-level info | grep "local node"
 
 # Verify GUIDs in JSON API
-curl -s http://localhost:8080/graph | jq '.[] | .Interfaces | .[] | select(.NodeGUID != "")'
+curl -s http://localhost:6469/graph | jq '.[] | .Interfaces | .[] | select(.NodeGUID != "")'
 
 # Check DOT output
-curl http://localhost:8080/graph.dot | grep "Node GUID"
+curl http://localhost:6469/graph.dot | grep "Node GUID"
 ```
 
 ## Performance

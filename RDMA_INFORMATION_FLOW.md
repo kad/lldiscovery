@@ -118,7 +118,7 @@ type Edge struct {
 Returns complete node information including RDMA:
 
 ```bash
-$ curl http://localhost:8080/graph | jq
+$ curl http://localhost:6469/graph | jq
 ```
 
 **Example response**:
@@ -146,7 +146,7 @@ $ curl http://localhost:8080/graph | jq
 Returns graph with RDMA information in both nodes and edges:
 
 ```bash
-$ curl http://localhost:8080/graph.dot
+$ curl http://localhost:6469/graph.dot
 ```
 
 **Example output**:

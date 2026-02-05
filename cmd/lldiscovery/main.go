@@ -41,7 +41,7 @@ var (
 
 	// Output parameters
 	outputFile  = flag.String("output-file", "", "path to DOT file output")
-	httpAddress = flag.String("http-address", "", "HTTP server bind address (e.g., :8080)")
+	httpAddress = flag.String("http-address", "", "HTTP server bind address (e.g., :6469)")
 
 	// Feature flags
 	includeNeighbors = flag.Bool("include-neighbors", false, "share neighbor information for transitive discovery")

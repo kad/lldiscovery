@@ -50,21 +50,21 @@ DAEMON_PID=$!
 sleep 3
 
 # Test health endpoint
-if curl -s http://localhost:8080/health | grep -q "ok"; then
+if curl -s http://localhost:6469/health | grep -q "ok"; then
     echo "✓ Health endpoint works"
 else
     echo "✗ Health endpoint failed"
 fi
 
 # Test graph endpoint
-if curl -s http://localhost:8080/graph | grep -q "{"; then
+if curl -s http://localhost:6469/graph | grep -q "{"; then
     echo "✓ Graph endpoint works"
 else
     echo "✗ Graph endpoint failed"
 fi
 
 # Test DOT endpoint
-if curl -s http://localhost:8080/graph.dot | grep -q "graph"; then
+if curl -s http://localhost:6469/graph.dot | grep -q "graph"; then
     echo "✓ DOT endpoint works"
 else
     echo "✗ DOT endpoint failed"
@@ -78,4 +78,4 @@ echo -e "\n==> All tests passed! ✓"
 echo -e "\nTo run the daemon manually:"
 echo "  ./lldiscovery -log-level debug"
 echo -e "\nTo visualize the topology:"
-echo "  curl http://localhost:8080/graph.dot | dot -Tpng -o topology.png"
+echo "  curl http://localhost:6469/graph.dot | dot -Tpng -o topology.png"

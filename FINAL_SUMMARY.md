@@ -85,7 +85,7 @@ A production-ready Go daemon for network discovery in VLAN-segmented environment
   "multicast_address": "ff02::4c4c:6469",
   "multicast_port": 9999,
   "output_file": "./topology.dot",
-  "http_address": ":8080",
+  "http_address": ":6469",
   "log_level": "info",
   "telemetry": {
     "enabled": false,
@@ -110,7 +110,7 @@ make build
 ./lldiscovery -log-level info
 
 # Generate visualization
-curl http://localhost:8080/graph.dot | dot -Tpng -o topology.png
+curl http://localhost:6469/graph.dot | dot -Tpng -o topology.png
 ```
 
 ### Production Deployment (Root/Systemd)

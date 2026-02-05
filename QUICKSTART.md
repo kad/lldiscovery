@@ -29,7 +29,7 @@ make build
 **Available Flags:**
 - `-send-interval` - How often to send packets (e.g., 10s, 30s, 1m)
 - `-node-timeout` - Node expiration timeout (e.g., 60s, 2m)
-- `-http-address` - HTTP API address (e.g., :8080, :9999)
+- `-http-address` - HTTP API address (e.g., :6469, :9999)
 - `-output-file` - DOT file path (e.g., /tmp/topology.dot)
 - `-include-neighbors` - Enable transitive discovery
 - `-log-level` - Logging level (debug, info, warn, error)
@@ -71,13 +71,13 @@ sudo journalctl -u lldiscovery -f
 
 ```bash
 # Health check
-curl http://localhost:8080/health
+curl http://localhost:6469/health
 
 # View current topology (JSON)
-curl http://localhost:8080/graph | jq
+curl http://localhost:6469/graph | jq
 
 # Get DOT format
-curl http://localhost:8080/graph.dot
+curl http://localhost:6469/graph.dot
 ```
 
 ## Visualization
@@ -89,7 +89,7 @@ sudo yum install graphviz      # RHEL/CentOS
 brew install graphviz          # macOS
 
 # Generate topology image from HTTP API
-curl http://localhost:8080/graph.dot | dot -Tpng -o topology.png
+curl http://localhost:6469/graph.dot | dot -Tpng -o topology.png
 
 # Or from file (check daemon logs for actual path)
 # If running as user: ./topology.dot
@@ -97,13 +97,13 @@ curl http://localhost:8080/graph.dot | dot -Tpng -o topology.png
 dot -Tpng ./topology.dot -o topology.png
 
 # SVG format (better for web viewing)
-curl http://localhost:8080/graph.dot | dot -Tsvg -o topology.svg
+curl http://localhost:6469/graph.dot | dot -Tsvg -o topology.svg
 
 # Interactive graph (xdot)
-curl http://localhost:8080/graph.dot | xdot -
+curl http://localhost:6469/graph.dot | xdot -
 
 # Auto-refresh visualization
-watch -n 5 'curl -s http://localhost:8080/graph.dot | dot -Tpng -o topology.png'
+watch -n 5 'curl -s http://localhost:6469/graph.dot | dot -Tpng -o topology.png'
 ```
 
 ## Testing Multi-Host Setup
@@ -127,10 +127,10 @@ To test discovery between multiple hosts:
 3. **Check discovery:**
    ```bash
    # On any host, check discovered nodes
-   curl http://localhost:8080/graph
+   curl http://localhost:6469/graph
    
    # Generate topology
-   curl http://localhost:8080/graph.dot | dot -Tpng -o topology.png
+   curl http://localhost:6469/graph.dot | dot -Tpng -o topology.png
    ```
 
 ## Example Topology Output

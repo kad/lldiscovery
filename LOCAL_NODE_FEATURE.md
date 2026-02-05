@@ -24,7 +24,7 @@ In DOT/Graphviz output:
 ### JSON API Output
 
 ```bash
-$ curl -s http://localhost:8080/graph | jq
+$ curl -s http://localhost:6469/graph | jq
 {
   "dd0621083f6949caafc297ee5711fbdf": {
     "Hostname": "akanevsk-desk",
@@ -103,13 +103,13 @@ make build
 ./lldiscovery -log-level info
 
 # Check JSON API
-curl -s http://localhost:8080/graph | jq '.[] | select(.IsLocal == true)'
+curl -s http://localhost:6469/graph | jq '.[] | select(.IsLocal == true)'
 
 # Check DOT output
-curl http://localhost:8080/graph.dot
+curl http://localhost:6469/graph.dot
 
 # Visualize
-curl http://localhost:8080/graph.dot | dot -Tpng -o topology.png
+curl http://localhost:6469/graph.dot | dot -Tpng -o topology.png
 ```
 
 The local node will have a light blue background in the rendered image.

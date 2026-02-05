@@ -42,7 +42,7 @@ func Default() *Config {
 		MulticastAddr:    "ff02::4c4c:6469",
 		MulticastPort:    9999,
 		OutputFile:       getDefaultOutputFile(),
-		HTTPAddress:      ":8080",
+		HTTPAddress:      ":6469",
 		LogLevel:         "info",
 		IncludeNeighbors: false,
 		ShowSegments:     false,

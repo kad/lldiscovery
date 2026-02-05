@@ -26,8 +26,8 @@ func TestDefault(t *testing.T) {
 		t.Errorf("Expected default multicast port 9999, got %d", cfg.MulticastPort)
 	}
 
-	if cfg.HTTPAddress != ":8080" {
-		t.Errorf("Expected default HTTP address :8080, got %s", cfg.HTTPAddress)
+	if cfg.HTTPAddress != ":6469" {
+		t.Errorf("Expected default HTTP address :6469, got %s", cfg.HTTPAddress)
 	}
 
 	if cfg.LogLevel != "info" {

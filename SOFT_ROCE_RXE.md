@@ -103,7 +103,7 @@ level=DEBUG msg="sent discovery packet"
 
 ### HTTP API Response
 ```bash
-$ curl http://localhost:8080/graph | jq '.[] | .Interfaces.enp0s31f6'
+$ curl http://localhost:6469/graph | jq '.[] | .Interfaces.enp0s31f6'
 {
   "IPAddress": "fe80::f2e5:c0ad:dee1:44e2%enp0s31f6",
   "RDMADevice": "rxe0",

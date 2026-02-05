@@ -160,7 +160,7 @@ Configuration can be provided via:
   "multicast_address": "ff02::1",
   "multicast_port": 9999,
   "output_file": "/var/lib/lldiscovery/topology.dot",
-  "http_address": ":8080",
+  "http_address": ":6469",
   "log_level": "info"
 }
 ```
@@ -177,7 +177,7 @@ All parameters can be set via config file or CLI flags. CLI flags take precedenc
 | Multicast Address | `multicast_address` | `-multicast-address` | ff02::4c4c:6469 | IPv6 multicast group |
 | Multicast Port | `multicast_port` | `-multicast-port` | 9999 | UDP port for discovery |
 | Output File | `output_file` | `-output-file` | (auto) | Path to DOT file output |
-| HTTP Address | `http_address` | `-http-address` | :8080 | HTTP API bind address |
+| HTTP Address | `http_address` | `-http-address` | :6469 | HTTP API bind address |
 | Log Level | `log_level` | `-log-level` | info | Logging level (debug/info/warn/error) |
 | Include Neighbors | `include_neighbors` | `-include-neighbors` | false | Enable transitive discovery |
 
@@ -242,13 +242,13 @@ The daemon exposes an HTTP API for querying the current graph:
 
 ```bash
 # Get graph as JSON
-curl http://localhost:8080/graph
+curl http://localhost:6469/graph
 
 # Get graph as DOT format
-curl http://localhost:8080/graph.dot
+curl http://localhost:6469/graph.dot
 
 # Health check
-curl http://localhost:8080/health
+curl http://localhost:6469/health
 ```
 
 ### Visualization

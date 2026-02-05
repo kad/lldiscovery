@@ -219,7 +219,7 @@ Quickly identify network partitions by comparing what each node thinks the topol
 ### HTTP JSON API
 
 ```bash
-curl http://localhost:8080/graph
+curl http://localhost:6469/graph
 ```
 
 Edges include `direct` and `learned_from` fields:
@@ -252,7 +252,7 @@ Edges include `direct` and `learned_from` fields:
 ### DOT Format
 
 ```bash
-curl http://localhost:8080/dot
+curl http://localhost:6469/dot
 ```
 
 Returns Graphviz DOT with:
@@ -296,7 +296,7 @@ Returns Graphviz DOT with:
   "multicast_address": "ff02::4c4c:6469",
   "multicast_port": 9999,
   "output_file": "/var/lib/lldiscovery/topology.dot",
-  "http_address": ":8080",
+  "http_address": ":6469",
   "log_level": "info",
   "include_neighbors": true
 }
