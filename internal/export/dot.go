@@ -54,46 +54,46 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 	sb.WriteString("\n")
 
 	// Build map of edges that are part of segments (to hide them)
-	// We hide edges from local node to segment members when the edge's local interface
-	// matches the segment's interface (meaning the connectivity is through that segment)
+	// Build a map of segment edges to avoid showing them as individual edges
+	// Mark ALL edges between any segment members (both direct and indirect)
 	segmentEdgeMap := make(map[string]map[string]bool) // [nodeA:nodeB][interface] -> true
-	localNodeID := ""
-	segmentInterfaces := make(map[string]map[string]string) // [nodeA][nodeB] -> segment interface
 
 	if len(segments) > 0 {
-		// Find local node ID
-		for nodeID, node := range nodes {
-			if node.IsLocal {
-				localNodeID = nodeID
-				break
-			}
-		}
-
-		if localNodeID != "" {
-			for _, segment := range segments {
-				// Mark edges from local node to segment members on this specific interface
-				for _, nodeID := range segment.ConnectedNodes {
-					if nodeID != localNodeID {
-						// Store which interface this segment uses
-						if segmentInterfaces[localNodeID] == nil {
-							segmentInterfaces[localNodeID] = make(map[string]string)
-						}
-						segmentInterfaces[localNodeID][nodeID] = segment.Interface
-
-						key1 := localNodeID + ":" + nodeID
-						key2 := nodeID + ":" + localNodeID
-
-						if segmentEdgeMap[key1] == nil {
-							segmentEdgeMap[key1] = make(map[string]bool)
-						}
-						if segmentEdgeMap[key2] == nil {
-							segmentEdgeMap[key2] = make(map[string]bool)
-						}
-
-						// Mark this edge on this interface as part of segment
-						segmentEdgeMap[key1][segment.Interface] = true
-						segmentEdgeMap[key2][segment.Interface] = true
+		// Mark ALL edges between segment members (not just from local node)
+		for _, segment := range segments {
+			// For each pair of nodes in this segment
+			for i, nodeA := range segment.ConnectedNodes {
+				for j, nodeB := range segment.ConnectedNodes {
+					if i >= j {
+						continue // Skip self and duplicates
 					}
+
+					// Get the interfaces these nodes use to connect to this segment
+					interfaceA := segment.Interface
+					interfaceB := segment.Interface
+					
+					// Try to get specific interface from edge info
+					if edgeInfo, ok := segment.EdgeInfo[nodeA]; ok {
+						interfaceA = edgeInfo.RemoteInterface
+					}
+					if edgeInfo, ok := segment.EdgeInfo[nodeB]; ok {
+						interfaceB = edgeInfo.RemoteInterface
+					}
+
+					// Mark edges in both directions
+					key1 := nodeA + ":" + nodeB
+					key2 := nodeB + ":" + nodeA
+
+					if segmentEdgeMap[key1] == nil {
+						segmentEdgeMap[key1] = make(map[string]bool)
+					}
+					if segmentEdgeMap[key2] == nil {
+						segmentEdgeMap[key2] = make(map[string]bool)
+					}
+
+					// Mark this edge on these interfaces as part of segment
+					segmentEdgeMap[key1][interfaceA] = true
+					segmentEdgeMap[key2][interfaceB] = true
 				}
 			}
 		}
