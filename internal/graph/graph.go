@@ -3,6 +3,7 @@ package graph
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -499,78 +500,141 @@ func (g *Graph) GetNetworkSegments() []NetworkSegment {
 
 	localID := g.localNode.MachineID
 
-	// Build a map tracking interface usage across the entire graph
-	// For each interface name, track which nodes use it
-	type InterfaceInfo struct {
-		NodesUsing map[string]bool             // nodeID -> true  
-		LocalEdges map[string]*Edge            // edges from local node (for edge info)
-		AllEdges   map[string]map[string]*Edge // all edges [srcID][dstID]
+	// Build a connectivity graph: which node:interface pairs can reach which other node:interface pairs
+	// Key format: "nodeID:interface"
+	type NodeInterface struct {
+		NodeID    string
+		Interface string
 	}
-	
-	interfaceMap := make(map[string]*InterfaceInfo)
 
-	// Scan all edges to build interface usage map
+	// Map of all node:interface combinations and what they connect to
+	connectivity := make(map[string]map[string]bool) // [nodeID:iface][otherNodeID:otherIface] -> true
+
+	// Scan all edges to build connectivity map
 	for srcID, dests := range g.edges {
 		for dstID, edgeList := range dests {
 			for _, edge := range edgeList {
-				// Track source interface usage
-				if edge.LocalInterface != "" {
-					if interfaceMap[edge.LocalInterface] == nil {
-						interfaceMap[edge.LocalInterface] = &InterfaceInfo{
-							NodesUsing: make(map[string]bool),
-							LocalEdges: make(map[string]*Edge),
-							AllEdges:   make(map[string]map[string]*Edge),
-						}
-					}
-					info := interfaceMap[edge.LocalInterface]
-					info.NodesUsing[srcID] = true
-					info.NodesUsing[dstID] = true // Destination is also reachable on this interface
+				srcKey := fmt.Sprintf("%s:%s", srcID, edge.LocalInterface)
+				dstKey := fmt.Sprintf("%s:%s", dstID, edge.RemoteInterface)
 
-					// Track edges
-					if info.AllEdges[srcID] == nil {
-						info.AllEdges[srcID] = make(map[string]*Edge)
-					}
-					if existing, ok := info.AllEdges[srcID][dstID]; !ok || (!existing.Direct && edge.Direct) {
-						info.AllEdges[srcID][dstID] = edge
-					}
+				if connectivity[srcKey] == nil {
+					connectivity[srcKey] = make(map[string]bool)
+				}
+				connectivity[srcKey][dstKey] = true
 
-					// Track edges from local node specifically (for EdgeInfo)
-					if srcID == localID {
-						if existing, ok := info.LocalEdges[dstID]; !ok || (!existing.Direct && edge.Direct) {
-							info.LocalEdges[dstID] = edge
+				// Add reverse connectivity
+				if connectivity[dstKey] == nil {
+					connectivity[dstKey] = make(map[string]bool)
+				}
+				connectivity[dstKey][srcKey] = true
+			}
+		}
+	}
+
+	// Find connected components (segments) using BFS
+	// A segment is a group of node:interface pairs that are mutually reachable
+	visited := make(map[string]bool)
+	var allSegments [][]string
+
+	for nodeIface := range connectivity {
+		if visited[nodeIface] {
+			continue
+		}
+
+		// BFS to find all connected node:interface pairs
+		segment := []string{nodeIface}
+		visited[nodeIface] = true
+		queue := []string{nodeIface}
+
+		for len(queue) > 0 {
+			current := queue[0]
+			queue = queue[1:]
+
+			for neighbor := range connectivity[current] {
+				if !visited[neighbor] {
+					visited[neighbor] = true
+					segment = append(segment, neighbor)
+					queue = append(queue, neighbor)
+				}
+			}
+		}
+
+		// Only keep segments with 3+ node:interface pairs
+		if len(segment) >= 3 {
+			allSegments = append(allSegments, segment)
+		}
+	}
+
+	// Convert segments to NetworkSegment format
+	segmentID := 0
+	for _, segmentNodeIfaces := range allSegments {
+		// Extract unique node IDs
+		nodeSet := make(map[string]bool)
+		interfaceSet := make(map[string]bool)
+
+		for _, nodeIface := range segmentNodeIfaces {
+			parts := strings.SplitN(nodeIface, ":", 2)
+			if len(parts) == 2 {
+				nodeSet[parts[0]] = true
+				interfaceSet[parts[1]] = true
+			}
+		}
+
+		// Need at least 3 unique nodes for a segment
+		if len(nodeSet) < 3 {
+			continue
+		}
+
+		// Create sorted list of node IDs
+		nodeIDs := make([]string, 0, len(nodeSet))
+		for nodeID := range nodeSet {
+			nodeIDs = append(nodeIDs, nodeID)
+		}
+		sort.Strings(nodeIDs)
+
+		// Determine interface name for the segment
+		// Use the most common interface name, or "mixed" if varied
+		var segmentInterface string
+		if len(interfaceSet) == 1 {
+			for iface := range interfaceSet {
+				segmentInterface = iface
+			}
+		} else {
+			// Multiple interface names - create a representative name
+			interfaces := make([]string, 0, len(interfaceSet))
+			for iface := range interfaceSet {
+				interfaces = append(interfaces, iface)
+			}
+			sort.Strings(interfaces)
+			if len(interfaces) <= 3 {
+				segmentInterface = strings.Join(interfaces, "+")
+			} else {
+				segmentInterface = fmt.Sprintf("mixed(%d)", len(interfaces))
+			}
+		}
+
+		// Collect edge info from local node to segment members
+		edgeInfo := make(map[string]*Edge)
+		if localEdges, ok := g.edges[localID]; ok {
+			for _, nodeID := range nodeIDs {
+				if nodeID == localID {
+					continue
+				}
+				if edges, ok := localEdges[nodeID]; ok {
+					// Use the first edge (prefer direct over indirect)
+					for _, edge := range edges {
+						if existing, ok := edgeInfo[nodeID]; !ok || (!existing.Direct && edge.Direct) {
+							edgeInfo[nodeID] = edge
 						}
 					}
 				}
 			}
 		}
-	}
-
-	// For each interface, check if it forms a segment (3+ nodes with connectivity)
-	segmentID := 0
-	for ifaceName, info := range interfaceMap {
-		if len(info.NodesUsing) < 3 {
-			continue // Need at least 3 nodes for a segment
-		}
-
-		// Convert to sorted list
-		nodesOnInterface := make([]string, 0, len(info.NodesUsing))
-		for nodeID := range info.NodesUsing {
-			nodesOnInterface = append(nodesOnInterface, nodeID)
-		}
-		sort.Strings(nodesOnInterface)
-
-		// Build edge info for local node connections
-		edgeInfo := make(map[string]*Edge)
-		for nodeID, edge := range info.LocalEdges {
-			if nodeID != localID {
-				edgeInfo[nodeID] = edge
-			}
-		}
 
 		segments = append(segments, NetworkSegment{
-			ID:             fmt.Sprintf("segment_%s_%d", ifaceName, segmentID),
-			Interface:      ifaceName,
-			ConnectedNodes: nodesOnInterface,
+			ID:             fmt.Sprintf("segment_%d", segmentID),
+			Interface:      segmentInterface,
+			ConnectedNodes: nodeIDs,
 			EdgeInfo:       edgeInfo,
 		})
 		segmentID++

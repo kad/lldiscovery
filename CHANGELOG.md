@@ -15,6 +15,19 @@
   - Dramatically improves readability for 100+ host topologies
   - Easier to trace which interfaces connect where
   - Better visual grouping of multi-interface hosts
+- **Connectivity-Based Network Segment Detection**: Detects actual physical network segments
+  - **Transitive connectivity**: Groups hosts based on reachability, not interface names
+  - **Mixed interface support**: Segment can include em1, br112, eth0, p2p1 simultaneously
+  - **Algorithm**: BFS (Breadth-First Search) to find connected components in connectivity graph
+  - **Key insight**: A:if1→B:if2 and A:if1→C:if3 belong to same segment if B:if2→C:if3 exists
+  - **Intelligent labels**: Single name or "if1+if2+if3" or "mixed(N)" for heterogeneous segments
+  - **Fewer segments**: Detects actual network infrastructure, not interface name groups
+  - **Better edge hiding**: More redundant edges hidden, cleaner visualization
+  - Examples:
+    * 13 hosts on same switch with mixed interfaces (em1, br112, eth0) → ONE segment
+    * Previously: 9 segments (em1, em4, br112, eth0, eth3, etc.) → Now: 2-3 actual segments
+    * Real topology accurately represented
+  - Handles heterogeneous networks with diverse interface naming conventions
 - **Enhanced Network Segment Detection**: Discovers ALL segments in topology
   - **Overlapping segments**: Nodes can participate in multiple segments (e.g., br112 + eth0)
   - **Global detection**: Finds segments even when local node doesn't participate

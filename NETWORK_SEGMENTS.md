@@ -30,52 +30,74 @@ lldiscovery -show-segments
 
 ### Detection Algorithm
 
-1. **Scan All Edges**: Analyze all edges in the entire graph (not just local node)
-2. **Track Interface Usage**: For each interface name (e.g., "br112", "eth0"), track which nodes use it
-3. **Identify Segments**: If 3+ nodes share the same interface name, create a segment
-4. **Collect Edge Info**: Store connection details (IP, speed, RDMA) for local node's connections
-5. **Generate Visualization**: Create segment nodes showing shared connectivity
+1. **Build Connectivity Graph**: Create a map of all `node:interface` pairs and their connections
+   - Example: `hostA:em1` connects to `hostB:br112`, `hostC:eth0`
+2. **Find Connected Components**: Use BFS (Breadth-First Search) to group mutually-reachable pairs
+   - If A connects to B, and B connects to C, then A, B, C form a component
+3. **Extract Segments**: Components with 3+ unique nodes become segments
+4. **Label Segments**: 
+   - Single interface name: Use that name (e.g., "em1")
+   - Multiple names: Combined label (e.g., "br112+em1+eth0" or "mixed(7)")
+5. **Collect Edge Info**: Store connection details for visualization
+
+### Key Insight: Transitive Connectivity
+
+A network segment is defined by **connectivity patterns**, not interface names:
+- If `A:if1 → B:if2` and `A:if1 → C:if3` and `B:if2 → C:if3` exist
+- Then A, B, C are all on the same segment
+- Even though they use different interface names!
+
+This handles real-world scenarios where:
+- Different vendors use different naming (em1, ens3, eth0, p2p1)
+- Hosts have heterogeneous configurations
+- A single switch connects diverse systems
 
 ### Threshold
 
-- **Minimum nodes**: 3+ total nodes using the same interface name
-- **Includes**: Direct edges (observed locally) and indirect edges (learned from neighbors)
-- **Global detection**: Finds segments even if local node doesn't participate
-- **Overlapping allowed**: A node can participate in multiple segments simultaneously
+- **Minimum nodes**: 3+ unique nodes (not just 3+ interfaces)
+- **Bidirectional**: Both sides of connection contribute to segment
+- **Transitive**: Indirectly connected nodes grouped together
+- **Global detection**: Finds all segments in the entire topology
 
 ### Examples of Detected Segments
 
-**Scenario 1: Local node directly connected**
+**Scenario 1: Mixed interface names (same physical switch)**
 ```
-Local node (em4) ← → Hosts A, B, C, D (various interfaces)
-Result: Segment detected on em4 with 5 nodes
-```
-
-**Scenario 2: Remote segment (overlapping)**
-```
-Hosts A, B, C all have br112 interface
-Hosts B, C, D all have eth0 interface
-Result: Two segments detected
-  - br112 segment: A, B, C
-  - eth0 segment: B, C, D
-Note: B and C participate in both segments
+Host A (em1) ←→ Host B (br112)
+Host A (em1) ←→ Host C (eth0)
+Host B (br112) ←→ Host C (eth0)
+Result: ONE segment with 3 nodes: A, B, C
+Label: "br112+em1+eth0" or "mixed(3)"
 ```
 
-**Scenario 3: Indirect connectivity**
+**Scenario 2: Overlapping segments**
 ```
-Local → Host A (learns about A-B-C on br112)
-Local → Host B (learns about A-B-C on br112)
-Local → Host C (learns about A-B-C on br112)
-Result: br112 segment detected even though local doesn't use br112
+Segment 1: Hosts A, B, C connected (various interfaces)
+Segment 2: Hosts B, C, D connected (different interfaces)
+Result: Two separate components detected
+  - Component 1: A, B, C
+  - Component 2: B, C, D (if not merged with Segment 1)
+Note: BFS ensures proper component separation
+```
+
+**Scenario 3: Large heterogeneous network**
+```
+13 hosts all connected through a 10G switch
+- Some use em1, em2, em4
+- Some use eth0, eth3
+- Some use p2p1, p3p1, p3p2
+- Some use br112 (bridges)
+Result: ONE segment with 13 nodes
+Label: "mixed(8)" (8 different interface names)
 ```
 
 ### Edge Information Preserved
 
 Each connection from segment to member node displays:
-- **Interface name**: Remote interface (e.g., "eth0")
-- **IP address**: Remote IPv6 link-local address (e.g., "fe80::2")
-- **Speed**: Link speed if available (e.g., "10000 Mbps")
-- **RDMA device**: Device name if RDMA-capable (e.g., "[mlx5_0]")
+- **Interface name**: Remote interface (may vary per host)
+- **IP address**: Remote IPv6 link-local address  
+- **Speed**: Link speed if available
+- **RDMA device**: Device name if RDMA-capable
 - **Visual distinction**: Blue dotted lines for RDMA-to-RDMA connections
 
 ## Visualization
