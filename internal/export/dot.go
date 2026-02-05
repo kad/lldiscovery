@@ -9,6 +9,31 @@ import (
 	"kad.name/lldiscovery/internal/graph"
 )
 
+// calculatePenwidth returns the line thickness based on link speed in Mbps
+// Returns sensible defaults for common speeds
+func calculatePenwidth(speedMbps int) float64 {
+	if speedMbps == 0 {
+		// Unknown speed - use default thickness
+		return 1.0
+	}
+
+	// Map speed ranges to line thickness
+	switch {
+	case speedMbps >= 100000: // 100+ Gbps
+		return 5.0
+	case speedMbps >= 40000: // 40-100 Gbps
+		return 4.0
+	case speedMbps >= 10000: // 10-40 Gbps
+		return 3.0
+	case speedMbps >= 1000: // 1-10 Gbps
+		return 2.0
+	case speedMbps >= 100: // 100 Mbps - 1 Gbps
+		return 1.5
+	default: // < 100 Mbps
+		return 1.0
+	}
+}
+
 func GenerateDOT(nodes map[string]*graph.Node, edges map[string]map[string][]*graph.Edge) string {
 	var sb strings.Builder
 
@@ -110,6 +135,20 @@ func GenerateDOT(nodes map[string]*graph.Node, edges map[string]map[string][]*gr
 					edge.LocalInterface, edge.LocalAddress,
 					edge.RemoteInterface, edge.RemoteAddress)
 
+				// Add speed information if available
+				if edge.LocalSpeed > 0 || edge.RemoteSpeed > 0 {
+					speedLine := "Speed:"
+					if edge.LocalSpeed > 0 {
+						speedLine += fmt.Sprintf(" %d Mbps", edge.LocalSpeed)
+					}
+					if edge.RemoteSpeed > 0 && edge.RemoteSpeed != edge.LocalSpeed {
+						speedLine += fmt.Sprintf(" <-> %d Mbps", edge.RemoteSpeed)
+					} else if edge.LocalSpeed == 0 && edge.RemoteSpeed > 0 {
+						speedLine += fmt.Sprintf(" %d Mbps", edge.RemoteSpeed)
+					}
+					edgeLabel += "\\n" + speedLine
+				}
+
 				// Check RDMA status on both sides
 				hasLocalRDMA := edge.LocalRDMADevice != ""
 				hasRemoteRDMA := edge.RemoteRDMADevice != ""
@@ -154,6 +193,15 @@ func GenerateDOT(nodes map[string]*graph.Node, edges map[string]map[string][]*gr
 					edgeLabel += "\\n[RDMA-to-RDMA]"
 				}
 
+				// Calculate line thickness based on speed
+				// Use the maximum speed between both sides
+				maxSpeed := edge.LocalSpeed
+				if edge.RemoteSpeed > maxSpeed {
+					maxSpeed = edge.RemoteSpeed
+				}
+
+				penwidth := calculatePenwidth(maxSpeed)
+
 				// Build edge attributes - highlight RDMA-to-RDMA connections and indirect edges
 				var edgeAttrs string
 				styleExtra := ""
@@ -162,22 +210,14 @@ func GenerateDOT(nodes map[string]*graph.Node, edges map[string]map[string][]*gr
 				}
 
 				if bothRDMA {
-					// Both sides have RDMA - thick, colored edge
-					edgeAttrs = fmt.Sprintf(" [label=\"%s\", color=\"blue\", penwidth=2.0%s]", edgeLabel, styleExtra)
+					// Both sides have RDMA - colored edge with speed-based thickness
+					edgeAttrs = fmt.Sprintf(" [label=\"%s\", color=\"blue\", penwidth=%.1f%s]", edgeLabel, penwidth, styleExtra)
 				} else if hasLocalRDMA || hasRemoteRDMA {
-					// Only one side has RDMA - normal edge
-					if styleExtra != "" {
-						edgeAttrs = fmt.Sprintf(" [label=\"%s\"%s]", edgeLabel, styleExtra)
-					} else {
-						edgeAttrs = fmt.Sprintf(" [label=\"%s\"]", edgeLabel)
-					}
+					// Only one side has RDMA - normal edge with speed-based thickness
+					edgeAttrs = fmt.Sprintf(" [label=\"%s\", penwidth=%.1f%s]", edgeLabel, penwidth, styleExtra)
 				} else {
-					// No RDMA - normal edge
-					if styleExtra != "" {
-						edgeAttrs = fmt.Sprintf(" [label=\"%s\"%s]", edgeLabel, styleExtra)
-					} else {
-						edgeAttrs = fmt.Sprintf(" [label=\"%s\"]", edgeLabel)
-					}
+					// No RDMA - normal edge with speed-based thickness
+					edgeAttrs = fmt.Sprintf(" [label=\"%s\", penwidth=%.1f%s]", edgeLabel, penwidth, styleExtra)
 				}
 
 				sb.WriteString(fmt.Sprintf("  \"%s\" -- \"%s\"%s;\n",

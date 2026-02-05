@@ -16,12 +16,14 @@ type NeighborInfo struct {
 	LocalRDMADevice   string `json:"local_rdma_device,omitempty"`
 	LocalNodeGUID     string `json:"local_node_guid,omitempty"`
 	LocalSysImageGUID string `json:"local_sys_image_guid,omitempty"`
+	LocalSpeed        int    `json:"local_speed,omitempty"` // Link speed in Mbps
 	// Remote side (neighbor's interface)
 	RemoteInterface    string `json:"remote_interface"`
 	RemoteAddress      string `json:"remote_address"`
 	RemoteRDMADevice   string `json:"remote_rdma_device,omitempty"`
 	RemoteNodeGUID     string `json:"remote_node_guid,omitempty"`
 	RemoteSysImageGUID string `json:"remote_sys_image_guid,omitempty"`
+	RemoteSpeed        int    `json:"remote_speed,omitempty"` // Link speed in Mbps
 }
 
 type Packet struct {
@@ -33,6 +35,7 @@ type Packet struct {
 	RDMADevice   string         `json:"rdma_device,omitempty"`
 	NodeGUID     string         `json:"node_guid,omitempty"`
 	SysImageGUID string         `json:"sys_image_guid,omitempty"`
+	Speed        int            `json:"speed,omitempty"` // Link speed in Mbps
 	Neighbors    []NeighborInfo `json:"neighbors,omitempty"`
 }
 

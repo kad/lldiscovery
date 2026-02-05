@@ -17,6 +17,7 @@ type InterfaceInfo struct {
 	RDMADevice   string
 	NodeGUID     string
 	SysImageGUID string
+	Speed        int // Link speed in Mbps
 }
 
 func GetActiveInterfaces() ([]InterfaceInfo, error) {
@@ -71,6 +72,9 @@ func GetActiveInterfaces() ([]InterfaceInfo, error) {
 				info.NodeGUID = getRDMANodeGUID(rdmaDevice)
 				info.SysImageGUID = getRDMASysImageGUID(rdmaDevice)
 			}
+
+			// Get link speed
+			info.Speed = getLinkSpeed(iface.Name)
 
 			result = append(result, info)
 			break
@@ -180,6 +184,32 @@ func getRDMASysImageGUID(rdmaDevice string) string {
 		return ""
 	}
 	return strings.TrimSpace(string(data))
+}
+
+// getLinkSpeed returns the link speed in Mbps by reading from /sys/class/net/<iface>/speed
+// Returns 0 if speed cannot be determined
+func getLinkSpeed(ifaceName string) int {
+	speedPath := fmt.Sprintf("/sys/class/net/%s/speed", ifaceName)
+	data, err := os.ReadFile(speedPath)
+	if err != nil {
+		// Speed file doesn't exist or can't be read (e.g., for VPN interfaces, down interfaces)
+		return 0
+	}
+
+	speedStr := strings.TrimSpace(string(data))
+	var speed int
+	_, err = fmt.Sscanf(speedStr, "%d", &speed)
+	if err != nil {
+		return 0
+	}
+
+	// /sys/class/net/*/speed returns speed in Mbps
+	// Handle invalid values (like -1 for unknown speed)
+	if speed < 0 {
+		return 0
+	}
+
+	return speed
 }
 
 // GetRDMADevices returns a list of all RDMA devices and their parent network interfaces

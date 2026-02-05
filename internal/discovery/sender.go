@@ -115,6 +115,9 @@ func (s *Sender) sendOnInterface(ctx context.Context, iface InterfaceInfo) error
 		packet.SysImageGUID = iface.SysImageGUID
 	}
 
+	// Add link speed if available
+	packet.Speed = iface.Speed
+
 	// Add neighbors if enabled
 	if s.includeNeighbors && s.neighborProvider != nil {
 		neighbors := s.neighborProvider.GetDirectNeighbors()
@@ -128,11 +131,13 @@ func (s *Sender) sendOnInterface(ctx context.Context, iface InterfaceInfo) error
 				LocalRDMADevice:    n.LocalRDMADevice,
 				LocalNodeGUID:      n.LocalNodeGUID,
 				LocalSysImageGUID:  n.LocalSysImageGUID,
+				LocalSpeed:         n.LocalSpeed,
 				RemoteInterface:    n.RemoteInterface,
 				RemoteAddress:      n.RemoteAddress,
 				RemoteRDMADevice:   n.RemoteRDMADevice,
 				RemoteNodeGUID:     n.RemoteNodeGUID,
 				RemoteSysImageGUID: n.RemoteSysImageGUID,
+				RemoteSpeed:        n.RemoteSpeed,
 			}
 		}
 	}

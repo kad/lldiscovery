@@ -13,11 +13,13 @@ type NeighborData struct {
 	LocalRDMADevice    string
 	LocalNodeGUID      string
 	LocalSysImageGUID  string
+	LocalSpeed         int
 	RemoteInterface    string
 	RemoteAddress      string
 	RemoteRDMADevice   string
 	RemoteNodeGUID     string
 	RemoteSysImageGUID string
+	RemoteSpeed        int
 }
 
 type InterfaceDetails struct {
@@ -25,6 +27,7 @@ type InterfaceDetails struct {
 	RDMADevice   string
 	NodeGUID     string
 	SysImageGUID string
+	Speed        int // Link speed in Mbps
 }
 
 type Node struct {
@@ -41,11 +44,13 @@ type Edge struct {
 	LocalRDMADevice    string
 	LocalNodeGUID      string
 	LocalSysImageGUID  string
+	LocalSpeed         int // Link speed in Mbps
 	RemoteInterface    string
 	RemoteAddress      string
 	RemoteRDMADevice   string
 	RemoteNodeGUID     string
 	RemoteSysImageGUID string
+	RemoteSpeed        int  // Link speed in Mbps
 	Direct             bool
 	LearnedFrom        string
 }
@@ -79,7 +84,7 @@ func (g *Graph) SetLocalNode(machineID, hostname string, interfaces map[string]I
 	g.changed = true
 }
 
-func (g *Graph) AddOrUpdate(machineID, hostname, remoteIface, sourceIP, receivingIface, rdmaDevice, nodeGUID, sysImageGUID string, direct bool, learnedFrom string) {
+func (g *Graph) AddOrUpdate(machineID, hostname, remoteIface, sourceIP, receivingIface, rdmaDevice, nodeGUID, sysImageGUID string, remoteSpeed int, direct bool, learnedFrom string) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
@@ -108,6 +113,7 @@ func (g *Graph) AddOrUpdate(machineID, hostname, remoteIface, sourceIP, receivin
 		RDMADevice:   rdmaDevice,
 		NodeGUID:     nodeGUID,
 		SysImageGUID: sysImageGUID,
+		Speed:        remoteSpeed,
 	}
 
 	if existing, ok := node.Interfaces[remoteIface]; !ok || existing != details {
@@ -136,11 +142,13 @@ func (g *Graph) AddOrUpdate(machineID, hostname, remoteIface, sourceIP, receivin
 			LocalRDMADevice:    localDetails.RDMADevice,
 			LocalNodeGUID:      localDetails.NodeGUID,
 			LocalSysImageGUID:  localDetails.SysImageGUID,
+			LocalSpeed:         localDetails.Speed,
 			RemoteInterface:    remoteIface,
 			RemoteAddress:      sourceIP,
 			RemoteRDMADevice:   rdmaDevice,
 			RemoteNodeGUID:     nodeGUID,
 			RemoteSysImageGUID: sysImageGUID,
+			RemoteSpeed:        remoteSpeed,
 			Direct:             direct,
 			LearnedFrom:        learnedFrom,
 		}
@@ -177,9 +185,11 @@ func (g *Graph) AddOrUpdate(machineID, hostname, remoteIface, sourceIP, receivin
 func (g *Graph) AddOrUpdateIndirectEdge(
 	neighborMachineID, neighborHostname,
 	neighborIface, neighborAddress,
-	neighborRDMA, neighborNodeGUID, neighborSysImageGUID,
+	neighborRDMA, neighborNodeGUID, neighborSysImageGUID string,
+	neighborSpeed int,
 	intermediateIface, intermediateAddress,
-	intermediateRDMA, intermediateNodeGUID, intermediateSysImageGUID,
+	intermediateRDMA, intermediateNodeGUID, intermediateSysImageGUID string,
+	intermediateSpeed int,
 	learnedFrom string) {
 
 	g.mu.Lock()
@@ -206,6 +216,7 @@ func (g *Graph) AddOrUpdateIndirectEdge(
 		RDMADevice:   neighborRDMA,
 		NodeGUID:     neighborNodeGUID,
 		SysImageGUID: neighborSysImageGUID,
+		Speed:        neighborSpeed,
 	}
 	if existing, ok := node.Interfaces[neighborIface]; !ok || existing != neighborDetails {
 		node.Interfaces[neighborIface] = neighborDetails
@@ -220,6 +231,7 @@ func (g *Graph) AddOrUpdateIndirectEdge(
 			RDMADevice:   intermediateRDMA,
 			NodeGUID:     intermediateNodeGUID,
 			SysImageGUID: intermediateSysImageGUID,
+			Speed:        intermediateSpeed,
 		}
 		if existing, ok := intermediateNode.Interfaces[intermediateIface]; !ok || existing != intermediateDetails {
 			intermediateNode.Interfaces[intermediateIface] = intermediateDetails
@@ -240,11 +252,13 @@ func (g *Graph) AddOrUpdateIndirectEdge(
 			LocalRDMADevice:    intermediateRDMA,
 			LocalNodeGUID:      intermediateNodeGUID,
 			LocalSysImageGUID:  intermediateSysImageGUID,
+			LocalSpeed:         intermediateSpeed,
 			RemoteInterface:    neighborIface,
 			RemoteAddress:      neighborAddress,
 			RemoteRDMADevice:   neighborRDMA,
 			RemoteNodeGUID:     neighborNodeGUID,
 			RemoteSysImageGUID: neighborSysImageGUID,
+			RemoteSpeed:        neighborSpeed,
 			Direct:             false,
 			LearnedFrom:        learnedFrom,
 		}
@@ -397,11 +411,13 @@ func (g *Graph) GetEdges() map[string]map[string][]*Edge {
 					LocalRDMADevice:    edge.LocalRDMADevice,
 					LocalNodeGUID:      edge.LocalNodeGUID,
 					LocalSysImageGUID:  edge.LocalSysImageGUID,
+					LocalSpeed:         edge.LocalSpeed,
 					RemoteInterface:    edge.RemoteInterface,
 					RemoteAddress:      edge.RemoteAddress,
 					RemoteRDMADevice:   edge.RemoteRDMADevice,
 					RemoteNodeGUID:     edge.RemoteNodeGUID,
 					RemoteSysImageGUID: edge.RemoteSysImageGUID,
+					RemoteSpeed:        edge.RemoteSpeed,
 					Direct:             edge.Direct,
 					LearnedFrom:        edge.LearnedFrom,
 				}
@@ -442,11 +458,13 @@ func (g *Graph) GetDirectNeighbors() []NeighborData {
 						LocalRDMADevice:    edge.LocalRDMADevice,
 						LocalNodeGUID:      edge.LocalNodeGUID,
 						LocalSysImageGUID:  edge.LocalSysImageGUID,
+						LocalSpeed:         edge.LocalSpeed,
 						RemoteInterface:    edge.RemoteInterface,
 						RemoteAddress:      edge.RemoteAddress,
 						RemoteRDMADevice:   edge.RemoteRDMADevice,
 						RemoteNodeGUID:     edge.RemoteNodeGUID,
 						RemoteSysImageGUID: edge.RemoteSysImageGUID,
+						RemoteSpeed:        edge.RemoteSpeed,
 					})
 				}
 			}
