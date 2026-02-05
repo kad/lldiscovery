@@ -214,3 +214,53 @@ func TestHandleGraphMethodNotAllowed(t *testing.T) {
 		t.Errorf("expected status 405, got %d", w.Code)
 	}
 }
+
+func TestHandleGraphNwdiag(t *testing.T) {
+	g := createTestGraph()
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	s := New(":0", g, logger, true) // Enable segments
+
+	req := httptest.NewRequest(http.MethodGet, "/graph.nwdiag", nil)
+	w := httptest.NewRecorder()
+
+	s.handleGraphNwdiag(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", w.Code)
+	}
+
+	contentType := w.Header().Get("Content-Type")
+	if contentType != "text/plain; charset=utf-8" {
+		t.Errorf("expected Content-Type text/plain; charset=utf-8, got %s", contentType)
+	}
+
+	body := w.Body.String()
+	if body == "" {
+		t.Error("expected non-empty response body")
+	}
+
+	// Verify nwdiag structure
+	if !contains(body, "@startuml") {
+		t.Error("expected @startuml in nwdiag output")
+	}
+	if !contains(body, "nwdiag {") {
+		t.Error("expected nwdiag opening")
+	}
+	if !contains(body, "@enduml") {
+		t.Error("expected @enduml in nwdiag output")
+	}
+}
+
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && findSubstring(s, substr))
+}
+
+func findSubstring(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}
+

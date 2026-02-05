@@ -249,8 +249,11 @@ The daemon exposes an HTTP API for querying the current graph:
 # Get complete topology as JSON (nodes, edges, and segments if enabled)
 curl http://localhost:6469/graph
 
-# Get graph as DOT format
+# Get graph as DOT format (Graphviz)
 curl http://localhost:6469/graph.dot
+
+# Get graph as PlantUML nwdiag format
+curl http://localhost:6469/graph.nwdiag
 
 # Health check
 curl http://localhost:6469/health
@@ -314,7 +317,9 @@ Example response structure:
 
 ### Visualization
 
-Generate a PNG or SVG image from the DOT file:
+Generate visualizations from the exported data:
+
+#### Graphviz (DOT format)
 
 ```bash
 # Install graphviz
@@ -332,6 +337,28 @@ dot -Tsvg /var/lib/lldiscovery/topology.dot -o topology.svg
 # Watch for changes and auto-regenerate
 watch -n 5 'dot -Tpng /var/lib/lldiscovery/topology.dot -o topology.png'
 ```
+
+#### PlantUML (nwdiag format)
+
+```bash
+# Install PlantUML
+sudo apt-get install plantuml
+
+# Generate network diagram from nwdiag format
+curl http://localhost:6469/graph.nwdiag -o topology.nwdiag
+plantuml topology.nwdiag
+
+# Or use online PlantUML server
+curl http://localhost:6469/graph.nwdiag | \
+  curl -X POST --data-binary @- http://www.plantuml.com/plantuml/png > topology.png
+```
+
+**nwdiag format benefits:**
+- Shows networks (segments/VLANs) horizontally
+- Displays nodes on multiple networks clearly
+- Includes IP addresses and interface names
+- Better for understanding network segregation
+- Ideal for documentation and presentations
 
 **Visual Styling:**
 - **Direct connections**: Bold lines for physically connected links

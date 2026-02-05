@@ -30,6 +30,7 @@ func New(addr string, g *graph.Graph, logger *slog.Logger, showSegments bool) *S
 	mux := http.NewServeMux()
 	mux.HandleFunc("/graph", s.handleGraph)
 	mux.HandleFunc("/graph.dot", s.handleGraphDOT)
+	mux.HandleFunc("/graph.nwdiag", s.handleGraphNwdiag)
 	mux.HandleFunc("/health", s.handleHealth)
 
 	s.srv = &http.Server{
@@ -107,6 +108,21 @@ func (s *Server) handleGraphDOT(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/vnd.graphviz")
 	w.Write([]byte(dot))
+}
+
+func (s *Server) handleGraphNwdiag(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	nodes := s.graph.GetNodes()
+	segments := s.graph.GetNetworkSegments()
+
+	nwdiag := export.ExportNwdiag(nodes, segments)
+
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Write([]byte(nwdiag))
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
