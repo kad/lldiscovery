@@ -9,6 +9,11 @@
   - Automated GitHub releases with GitHub Actions
   - Package installation includes user creation, systemd service, and proper permissions
   - Binary archives with documentation and configuration files
+- **Unit Tests**: Comprehensive test suite for core packages
+  - Configuration: 12 test cases for endpoint parsing and validation
+  - Discovery packets: 6 test cases for JSON serialization and neighbor information
+  - All tests passing with good coverage of critical data structures
+  - See UNIT_TESTS.md for details
 
 ### Changed
 
