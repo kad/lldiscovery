@@ -15,21 +15,20 @@
   - Dramatically improves readability for 100+ host topologies
   - Easier to trace which interfaces connect where
   - Better visual grouping of multi-interface hosts
-- **Clique-Based Network Segment Detection**: Detects actual physical network segments using maximal cliques
-  - **Algorithm**: Bron-Kerbosch with pivoting to find all maximal cliques
-  - **Key insight**: A segment is a CLIQUE (complete subgraph) where ALL nodes mutually connect
-  - **Example**: If A↔B, B↔C, A↔C all exist, they form a segment (triangle clique)
-  - **Not just connected**: Linear chain A→B→C is NOT a segment (A doesn't reach C directly)
+- **Connected Components with Clique Verification**: Detects actual VLANs/network segments
+  - **Algorithm**: BFS to find connected components + verification that each is a clique
+  - **Key insight**: B:if2 reaches A:if1 → they're on the same VLAN (direct or indirect doesn't matter)
+  - **Segment criteria**: 3+ nodes all mutually connected (complete graph / clique)
+  - **Peer-to-peer filtering**: 2-node connections excluded (not shared networks)
+  - **No duplicates**: Each VLAN found once (not all overlapping maximal cliques)
   - **Mixed interface support**: Segment can include em1, br112, eth0, p2p1 simultaneously
-  - **Overlapping segments**: Nodes can participate in multiple segments using different interfaces
+  - **Overlapping VLANs**: Nodes can have different interfaces on different VLANs
   - **Intelligent labels**: Single name or "if1+if2+if3" or "mixed(N)" for heterogeneous segments
-  - **Transitive discovery**: Works with indirect edges learned from neighbor sharing
-  - **Fewer false positives**: Only detects actual network segments (switches/VLANs)
   - **Examples**:
-    * 8 hosts all mutually connected on same switch → ONE segment
-    * Node A on eth0 segment + eth1 segment → TWO separate cliques detected
-    * Linear topology A-B-C without full mesh → NO segment (not a clique)
-    * Previously: Connected components gave false segments → Now: Only true cliques
+    * 13 hosts all mutually connected on one switch → ONE segment
+    * Node A on VLAN1 (eth0) + VLAN2 (eth1) → TWO separate segments
+    * Linear topology A-B-C without full mesh → NO segment (rejected, not a clique)
+    * 2 nodes C↔D → NO segment (peer-to-peer link, below 3-node threshold)
   - Handles heterogeneous networks with diverse interface naming conventions
 - **Network Segment Detection**: Identify and visualize shared network segments (switches/VLANs)
   - Detects when a host can reach 3+ neighbors on the same interface

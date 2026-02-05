@@ -501,9 +501,10 @@ func (g *Graph) GetNetworkSegments() []NetworkSegment {
 	localID := g.localNode.MachineID
 
 	// Build a connectivity graph: which node:interface pairs can reach which other node:interface pairs
+	// Key insight: If B:if2 can reach A:if1, they're on the same VLAN
 	connectivity := make(map[string]map[string]bool) // [nodeID:iface][otherNodeID:otherIface] -> true
 
-	// Scan all edges to build bidirectional connectivity map
+	// Scan all edges (both direct and indirect) to build bidirectional connectivity map
 	for srcID, dests := range g.edges {
 		for dstID, edgeList := range dests {
 			for _, edge := range edgeList {
@@ -524,40 +525,76 @@ func (g *Graph) GetNetworkSegments() []NetworkSegment {
 		}
 	}
 
-	// Find all maximal cliques using Bron-Kerbosch algorithm
-	allNodeInterfaces := make([]string, 0, len(connectivity))
-	for ni := range connectivity {
-		allNodeInterfaces = append(allNodeInterfaces, ni)
+	// Find connected components using BFS
+	// Each component represents a potential VLAN/segment
+	visited := make(map[string]bool)
+	var components [][]string
+
+	for nodeIface := range connectivity {
+		if visited[nodeIface] {
+			continue
+		}
+
+		// BFS to find all connected node:interface pairs
+		component := []string{nodeIface}
+		visited[nodeIface] = true
+		queue := []string{nodeIface}
+
+		for len(queue) > 0 {
+			current := queue[0]
+			queue = queue[1:]
+
+			for neighbor := range connectivity[current] {
+				if !visited[neighbor] {
+					visited[neighbor] = true
+					component = append(component, neighbor)
+					queue = append(queue, neighbor)
+				}
+			}
+		}
+
+		components = append(components, component)
 	}
 
-	var cliques [][]string
-	bronKerbosch(
-		[]string{},              // R: current clique being built
-		allNodeInterfaces,       // P: candidates to add
-		[]string{},              // X: already processed
-		connectivity,
-		&cliques,
-	)
-
-	// Convert cliques to segments
+	// Convert components to segments, filtering for size and verifying they're cliques
 	segmentID := 0
-	for _, clique := range cliques {
-		// Extract unique node IDs from clique
+	for _, component := range components {
+		// Extract unique node IDs
 		nodeSet := make(map[string]bool)
 		interfaceSet := make(map[string]bool)
-		nodeInterfaceMap := make(map[string]string) // nodeID -> interface used in this clique
 
-		for _, nodeIface := range clique {
+		for _, nodeIface := range component {
 			parts := strings.SplitN(nodeIface, ":", 2)
 			if len(parts) == 2 {
 				nodeSet[parts[0]] = true
 				interfaceSet[parts[1]] = true
-				nodeInterfaceMap[parts[0]] = parts[1]
 			}
 		}
 
 		// Need at least 3 unique nodes for a segment
+		// With only 2 nodes, it's a peer-to-peer link, not a shared network
 		if len(nodeSet) < 3 {
+			continue
+		}
+
+		// Verify this component is a clique (all pairs mutually connected)
+		// This ensures it's a true shared network segment, not just a connected component
+		isClique := true
+		for i, ni1 := range component {
+			for j := i + 1; j < len(component); j++ {
+				ni2 := component[j]
+				if !connectivity[ni1][ni2] || !connectivity[ni2][ni1] {
+					isClique = false
+					break
+				}
+			}
+			if !isClique {
+				break
+			}
+		}
+
+		// Only keep components that are cliques (true segments)
+		if !isClique {
 			continue
 		}
 
@@ -618,131 +655,6 @@ func (g *Graph) GetNetworkSegments() []NetworkSegment {
 	return segments
 }
 
-// bronKerbosch implements the Bron-Kerbosch algorithm to find all maximal cliques
-// with pivot optimization for better performance
-func bronKerbosch(R, P, X []string, connectivity map[string]map[string]bool, cliques *[][]string) {
-	if len(P) == 0 && len(X) == 0 {
-		// Found a maximal clique
-		if len(R) >= 3 { // Only keep cliques with 3+ node:interface pairs
-			// Extract unique nodes to verify we have 3+ unique machines
-			uniqueNodes := make(map[string]bool)
-			for _, nodeIface := range R {
-				parts := strings.SplitN(nodeIface, ":", 2)
-				if len(parts) == 2 {
-					uniqueNodes[parts[0]] = true
-				}
-			}
-			if len(uniqueNodes) >= 3 {
-				clique := make([]string, len(R))
-				copy(clique, R)
-				*cliques = append(*cliques, clique)
-			}
-		}
-		return
-	}
-
-	// Create a copy of P since we'll be modifying it
-	PCopy := make([]string, len(P))
-	copy(PCopy, P)
-
-	// Choose pivot (vertex with most connections in P ∪ X) for optimization
-	pivot := choosePivot(PCopy, X, connectivity)
-	pivotNeighbors := make(map[string]bool)
-	if pivot != "" && connectivity[pivot] != nil {
-		for n := range connectivity[pivot] {
-			pivotNeighbors[n] = true
-		}
-	}
-
-	// Iterate over P \ N(pivot)
-	for _, v := range PCopy {
-		// Skip neighbors of pivot (optimization)
-		if pivotNeighbors[v] {
-			continue
-		}
-
-		// Build new sets for recursive call
-		newR := append([]string{}, R...)
-		newR = append(newR, v)
-
-		// newP = P ∩ N(v)
-		newP := intersect(P, getNeighborsList(v, connectivity))
-
-		// newX = X ∩ N(v)
-		newX := intersect(X, getNeighborsList(v, connectivity))
-
-		bronKerbosch(newR, newP, newX, connectivity, cliques)
-
-		// Move v from P to X
-		P = remove(P, v)
-		X = append(X, v)
-	}
-}
-
-// choosePivot selects a vertex with the most connections in P ∪ X
-func choosePivot(P, X []string, connectivity map[string]map[string]bool) string {
-	var pivot string
-	maxConnections := -1
-
-	candidates := append([]string{}, P...)
-	candidates = append(candidates, X...)
-
-	for _, v := range candidates {
-		if connectivity[v] == nil {
-			continue
-		}
-		connections := 0
-		for _, u := range P {
-			if connectivity[v][u] {
-				connections++
-			}
-		}
-		if connections > maxConnections {
-			maxConnections = connections
-			pivot = v
-		}
-	}
-
-	return pivot
-}
-
-// getNeighborsList returns all vertices connected to v
-func getNeighborsList(v string, connectivity map[string]map[string]bool) []string {
-	var result []string
-	if neighMap, ok := connectivity[v]; ok {
-		for neighbor := range neighMap {
-			result = append(result, neighbor)
-		}
-	}
-	return result
-}
-
-// intersect returns the intersection of two slices
-func intersect(a, b []string) []string {
-	set := make(map[string]bool)
-	for _, v := range b {
-		set[v] = true
-	}
-
-	var result []string
-	for _, v := range a {
-		if set[v] {
-			result = append(result, v)
-		}
-	}
-	return result
-}
-
-// remove removes an element from a slice
-func remove(slice []string, elem string) []string {
-	var result []string
-	for _, v := range slice {
-		if v != elem {
-			result = append(result, v)
-		}
-	}
-	return result
-}
 func (g *Graph) isCompleteIsland(ownerID string, neighborIDs []string) bool {
 	// Check if each neighbor sees all other neighbors
 	for _, neighborID := range neighborIDs {

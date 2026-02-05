@@ -28,67 +28,81 @@ lldiscovery -show-segments
 
 ## How It Works
 
-### Detection Algorithm: Maximal Clique Finding
+### Detection Algorithm: Connected Components with Clique Verification
 
-The algorithm uses the **Bron-Kerbosch algorithm** to find maximal cliques in the network topology:
+The algorithm finds network segments (VLANs/switches) by identifying groups of mutually-connected node:interface pairs:
 
 1. **Build Connectivity Graph**: Create a bidirectional map of all `node:interface` pairs
    - Example: `hostA:em1` ↔ `hostB:br112`, `hostA:em1` ↔ `hostC:eth0`
+   - Include both direct and indirect edges (no distinction for VLAN detection)
 
-2. **Find Maximal Cliques**: Use Bron-Kerbosch with pivoting to find all maximal cliques
-   - A **clique** is a set of nodes where ALL pairs are mutually connected
-   - A **maximal clique** cannot be extended by adding more nodes
-   - Pivoting optimization reduces computational complexity
+2. **Find Connected Components**: Use BFS to group reachable node:interface pairs
+   - All node:interface pairs that can reach each other form a component
 
-3. **Filter by Size**: Keep only cliques with 3+ unique nodes
+3. **Verify Cliques**: Check that each component is a complete graph (clique)
+   - In a true segment, ALL pairs must be mutually connected
+   - Linear chains (A→B→C without A→C) are rejected
 
-4. **Label Segments**: 
+4. **Filter by Size**: Keep only components with 3+ unique nodes
+   - 2-node connections are peer-to-peer links, not shared networks
+
+5. **Label Segments**: 
    - Single interface name: Use that name (e.g., "em1")
    - Multiple names: Combined label (e.g., "br112+em1+eth0" or "mixed(7)")
 
-5. **Collect Edge Info**: Store connection details for visualization
+6. **Collect Edge Info**: Store connection details for visualization
 
-### Why Cliques?
+### Key Insight: VLAN = Connected Component + All-to-All Connectivity
 
-A network segment (switch/VLAN) is characterized by **all-to-all connectivity**:
-- If nodes A, B, C are connected to the same switch, they can ALL reach each other
-- This forms a **clique**: A↔B, B↔C, A↔C (triangle)
-- **Not just** a connected component (A→B→C doesn't mean A reaches C directly)
-
-### Key Insight: Cliques Represent Physical Segments
+A network segment (VLAN/switch) has two properties:
+1. **Connectivity**: All node:interface pairs can reach each other (connected component)
+2. **Completeness**: Every pair has a direct connection (clique/complete graph)
 
 ```
-If edges exist:
-  A:if1 ↔ B:if2
-  B:if2 ↔ C:if3
-  A:if1 ↔ C:if3
-
-Then A, B, C form a clique (all mutually connected)
-→ Introduce segment node X: A:if1─X, B:if2─X, C:if3─X
+If B:if2 can reach A:if1, then B:if2 and A:if1 are on the same VLAN.
+If 3+ node:interface pairs are all mutually connected, they form a segment.
+If only 2 nodes connect (C:if4↔D:if3), it's a peer-to-peer link.
 ```
 
-This handles real-world scenarios where:
-- Different hosts use different interface names (em1, eth0, br112, p2p1)
-- Transitive discovery reveals indirect connections
-- A single switch connects hosts with heterogeneous configurations
+### Why Connected Components + Clique Verification?
 
-### Algorithm Properties
+Using **only** connected components would create false positives:
+```
+Linear: A → B → C → D
+  - Forms ONE connected component
+  - But A doesn't reach C or D directly
+  - NOT a segment (no switch connects them all)
+```
 
-- **Maximal**: Each clique is as large as possible (can't add more nodes)
-- **Overlapping**: Nodes can participate in multiple segments (different interfaces)
-- **Efficient**: Pivoting reduces search space dramatically
-- **Complete**: Finds ALL maximal cliques in the topology
+Using **only** maximal cliques would create duplicates:
+```
+Dense graph with 13 nodes all mutually connected
+  - Can generate MANY overlapping maximal cliques
+  - All represent the same VLAN
+  - Need to find unique components first
+```
+
+**Solution**: Find connected components (unique VLANs), then verify each is a clique (true segment).
+
+### Properties
+
+- **No false positives**: Linear chains rejected (not cliques)
+- **No duplicates**: Each VLAN found once (not all maximal cliques)
+- **Direct = Indirect**: Both edge types contribute equally to VLAN detection
+- **Overlapping support**: Nodes can have multiple interfaces on different VLANs
+- **Peer-to-peer filtering**: 2-node connections excluded (3+ required)
 
 ### Threshold
 
-- **Minimum nodes**: 3+ unique nodes (smallest interesting clique is a triangle)
-- **Bidirectional**: All connections must be mutual
-- **Transitive aware**: Works with indirect edges from neighbor sharing
+- **Minimum nodes**: 3+ unique nodes (peer-to-peer links with only 2 nodes are excluded)
+- **Bidirectional**: All connections must be mutual (both direct and indirect edges count)
+- **Clique requirement**: ALL pairs must be mutually connected (not just reachable)
 - **Global detection**: Finds all segments across the entire topology
+- **No distinction**: Direct and indirect edges contribute equally to VLAN detection
 
 ### Examples of Detected Segments
 
-**Scenario 1: Simple triangle (minimal clique)**
+**Scenario 1: Simple triangle (minimal segment)**
 ```
 Host A (eth0) ↔ Host B (eth0)
 Host B (eth0) ↔ Host C (eth0)
@@ -106,14 +120,14 @@ Result: ONE segment with 3 nodes: A, B, C (all mutually connected)
 Label: "br112+em1+eth0" or "mixed(3)"
 ```
 
-**Scenario 3: Multiple overlapping segments**
+**Scenario 3: Multiple VLANs (overlapping nodes)**
 ```
-Segment 1 (eth0): A, B, C form complete triangle
-Segment 2 (eth1): A, D, E form complete triangle
-Result: Two separate cliques
-  - Clique 1: A:eth0, B:eth0, C:eth0
-  - Clique 2: A:eth1, D:eth1, E:eth1
-Note: A participates in both segments (different interfaces)
+VLAN 1 (eth0): A, B, C all mutually connected on eth0
+VLAN 2 (eth1): A, D, E all mutually connected on eth1
+Result: Two separate segments
+  - Segment 1: A:eth0, B:eth0, C:eth0
+  - Segment 2: A:eth1, D:eth1, E:eth1
+Note: A participates in both VLANs (different interfaces)
 ```
 
 **Scenario 4: Not a segment (linear chain)**
@@ -121,18 +135,26 @@ Note: A participates in both segments (different interfaces)
 Host A ↔ Host B
 Host B ↔ Host C
 Host A ↔ Host C (MISSING)
-Result: NO segment detected (not a clique, just a chain)
-Only detects: A-B pair, B-C pair (each < 3 nodes)
+Result: NO segment detected (not a clique)
+Component found but rejected (not all-to-all connected)
 ```
 
-**Scenario 5: Large heterogeneous network**
+**Scenario 5: Peer-to-peer link (only 2 nodes)**
 ```
-8 hosts all mutually connected through a 10G switch
+Host C (if4) ↔ Host D (if3)
+Host D (if3) ↔ Host C (if4)
+Result: NO segment detected (only 2 nodes, below threshold)
+This is a direct link, not a shared network
+```
+
+**Scenario 6: Large heterogeneous VLAN**
+```
+13 hosts all mutually connected through a 10G switch
 - Some use em1, em2, em4
 - Some use eth0, eth3
 - Some use p2p1, p3p1
 - Some use br112 (bridges)
-Result: ONE segment with 8 nodes
+Result: ONE segment with 13 nodes
 Label: "mixed(8)" (8 different interface names)
 ```
 
