@@ -2,7 +2,11 @@
 
 ## [Unreleased]
 
+### Fixed
+- **Critical**: Local node prefix storage bug - prefixes were not being copied from InterfaceInfo to InterfaceDetails during local node initialization, resulting in null prefixes for the local node in JSON exports. Fixed by adding missing `GlobalPrefixes` field assignment in cmd/lldiscovery/main.go.
+
 ### Added
+- **Edge Prefix Fields**: Added `LocalPrefixes` and `RemotePrefixes` fields to Edge struct for complete network prefix information in JSON exports. EdgeInfo in segments now includes prefix data for both local and remote sides of connections.
 - **Network Prefix-Based Segment Naming**: Segments now display network prefixes instead of interface names when global addresses are available
   - Supports both IPv4 (e.g., "192.168.1.0/24") and IPv6 (e.g., "2001:db8:100::/64") prefixes
   - Daemon collects global unicast addresses from all interfaces

@@ -193,11 +193,12 @@ func main() {
 		ifaceMap := make(map[string]graph.InterfaceDetails)
 		for _, iface := range localInterfaces {
 			ifaceMap[iface.Name] = graph.InterfaceDetails{
-				IPAddress:    iface.LinkLocal,
-				RDMADevice:   iface.RDMADevice,
-				NodeGUID:     iface.NodeGUID,
-				SysImageGUID: iface.SysImageGUID,
-				Speed:        iface.Speed,
+				IPAddress:      iface.LinkLocal,
+				GlobalPrefixes: iface.GlobalPrefixes,
+				RDMADevice:     iface.RDMADevice,
+				NodeGUID:       iface.NodeGUID,
+				SysImageGUID:   iface.SysImageGUID,
+				Speed:          iface.Speed,
 			}
 		}
 
