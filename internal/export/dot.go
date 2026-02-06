@@ -109,41 +109,53 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 			}
 
 			// For nodes without EdgeInfo, check if they have interfaces with segment's prefixes
+			// Also check ALL nodes for additional interfaces beyond what EdgeInfo provides
 			for _, nodeID := range segment.ConnectedNodes {
-				if len(nodeInterfaces[nodeID]) == 0 {
-					// No interface info from EdgeInfo, check node's interfaces against segment prefixes
-					if node, exists := nodes[nodeID]; exists {
-						// Sort interface names for deterministic processing
-						var ifaceNames []string
-						for ifaceName := range node.Interfaces {
-							ifaceNames = append(ifaceNames, ifaceName)
+				// No interface info from EdgeInfo, OR need to find additional interfaces
+				// Check node's interfaces against segment prefixes
+				if node, exists := nodes[nodeID]; exists {
+					// Sort interface names for deterministic processing
+					var ifaceNames []string
+					for ifaceName := range node.Interfaces {
+						ifaceNames = append(ifaceNames, ifaceName)
+					}
+					sort.Strings(ifaceNames)
+					
+					for _, ifaceName := range ifaceNames {
+						// Skip if already added from EdgeInfo
+						alreadyAdded := false
+						for _, existing := range nodeInterfaces[nodeID] {
+							if existing == ifaceName {
+								alreadyAdded = true
+								break
+							}
 						}
-						sort.Strings(ifaceNames)
+						if alreadyAdded {
+							continue
+						}
 						
-						for _, ifaceName := range ifaceNames {
-							ifaceDetails := node.Interfaces[ifaceName]
-							// Check if this interface has any of the segment's prefixes
-							for _, ifacePrefix := range ifaceDetails.GlobalPrefixes {
-								for _, segPrefix := range segment.NetworkPrefixes {
-									if ifacePrefix == segPrefix {
-										// This interface is on this segment
-										nodeInterfaces[nodeID] = append(nodeInterfaces[nodeID], ifaceName)
-										break
-									}
+						ifaceDetails := node.Interfaces[ifaceName]
+						// Check if this interface has any of the segment's prefixes
+						for _, ifacePrefix := range ifaceDetails.GlobalPrefixes {
+							for _, segPrefix := range segment.NetworkPrefixes {
+								if ifacePrefix == segPrefix {
+									// This interface is on this segment
+									nodeInterfaces[nodeID] = append(nodeInterfaces[nodeID], ifaceName)
+									break
 								}
 							}
 						}
 					}
-					
-					// If still no interfaces found, use reference interfaces as fallback
-					if len(nodeInterfaces[nodeID]) == 0 && len(referenceInterfaces) > 0 {
-						nodeInterfaces[nodeID] = referenceInterfaces
-					}
-					
-					// Final fallback: use segment.Interface
-					if len(nodeInterfaces[nodeID]) == 0 {
-						nodeInterfaces[nodeID] = []string{segment.Interface}
-					}
+				}
+				
+				// If still no interfaces found, use reference interfaces as fallback
+				if len(nodeInterfaces[nodeID]) == 0 && len(referenceInterfaces) > 0 {
+					nodeInterfaces[nodeID] = referenceInterfaces
+				}
+				
+				// Final fallback: use segment.Interface
+				if len(nodeInterfaces[nodeID]) == 0 {
+					nodeInterfaces[nodeID] = []string{segment.Interface}
 				}
 			}
 

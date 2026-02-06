@@ -4,6 +4,7 @@
 **Issues Fixed**: 
 1. WiFi interfaces on nodes that are part of a network segment were not shown as connected to the segment in DOT visualizations
 2. Intra-segment edges between WiFi and wired interfaces were not properly hidden
+3. Edge hiding only worked for primary interface from EdgeInfo, missing secondary interfaces
 
 ## Problems
 
@@ -58,6 +59,18 @@ segmentEdgeMap[key2][interfaceB] = true  // Only interfaceB
 
 When checking if an edge should be hidden, only `edge.LocalInterface` was checked. For an edge `srv:wlp58s0 → fork:eno1`, we need BOTH interfaces marked on the `srv:fork` key to properly hide it.
 
+### Root Cause 3: Incomplete Interface Collection for Edge Hiding
+
+The edge hiding logic only checked for additional interfaces on nodes WITHOUT EdgeInfo entries:
+
+```go
+if len(nodeInterfaces[nodeID]) == 0 {
+    // Check node's interfaces against segment prefixes
+}
+```
+
+This meant nodes with EdgeInfo (most nodes) only had their ONE interface from EdgeInfo added to the hiding map. Their secondary interfaces (WiFi) were never discovered, so edges involving those interfaces weren't marked for hiding.
+
 ## Solutions
 
 ### Solution 1: Connect All Interfaces to Segments
@@ -82,6 +95,38 @@ segmentEdgeMap[key2][interfaceB] = true
 ```
 
 This ensures any edge between segment members is properly detected and hidden, regardless of which node is source/destination.
+
+### Solution 3: Complete Interface Collection
+
+Fixed the interface collection to check ALL nodes for additional interfaces, not just nodes without EdgeInfo:
+
+**Before:**
+```go
+for _, nodeID := range segment.ConnectedNodes {
+    if len(nodeInterfaces[nodeID]) == 0 {
+        // Only check if no EdgeInfo
+        for ifaceName, ifaceDetails := range node.Interfaces {
+            // Check prefixes...
+        }
+    }
+}
+```
+
+**After:**
+```go
+for _, nodeID := range segment.ConnectedNodes {
+    // ALWAYS check for additional interfaces
+    for ifaceName, ifaceDetails := range node.Interfaces {
+        // Skip if already in nodeInterfaces from EdgeInfo
+        if alreadyAdded(ifaceName) {
+            continue
+        }
+        // Check prefixes and add if matching...
+    }
+}
+```
+
+Now all nodes have ALL their segment-participating interfaces discovered and marked for hiding.
 
 ## Results
 
