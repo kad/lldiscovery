@@ -293,48 +293,122 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 			sb.WriteString(fmt.Sprintf("  \"%s\" [label=\"%s\", shape=ellipse, style=filled, fillcolor=\"#ffffcc\", pos=\"0,0!\", pin=true];\n",
 				segmentNodeID, segmentLabel))
 
-			// Connect segment to each member node's interface
+			// Connect segment to each member node's interface(s)
+			// A node can have multiple interfaces on the same segment (e.g., wired + WiFi)
 			for _, nodeID := range segment.ConnectedNodes {
-				// Get edge info for this node if available
-				edge, hasEdge := segment.EdgeInfo[nodeID]
-
-				if hasEdge {
-					// Build interface node ID for the connection
-					ifaceNodeID := fmt.Sprintf("%s__%s", nodeID, edge.RemoteInterface)
-
-					// Build edge label with address info
-					edgeLabel := edge.RemoteAddress
-
-					// Add speed if available
-					if edge.RemoteSpeed > 0 {
-						edgeLabel += fmt.Sprintf("\\n%d Mbps", edge.RemoteSpeed)
+				// Collect all interfaces this node uses on this segment
+				var nodeInterfaces []string
+				
+				// First, get from EdgeInfo if available
+				if edge, hasEdge := segment.EdgeInfo[nodeID]; hasEdge && edge.RemoteInterface != "" {
+					nodeInterfaces = append(nodeInterfaces, edge.RemoteInterface)
+				}
+				
+				// Then, find any other interfaces with matching prefixes
+				if node, exists := nodes[nodeID]; exists {
+					for ifaceName, ifaceDetails := range node.Interfaces {
+						// Skip if already added from EdgeInfo
+						alreadyAdded := false
+						for _, added := range nodeInterfaces {
+							if added == ifaceName {
+								alreadyAdded = true
+								break
+							}
+						}
+						if alreadyAdded {
+							continue
+						}
+						
+						// Check if this interface has any of the segment's prefixes
+						hasMatchingPrefix := false
+						for _, ifacePrefix := range ifaceDetails.GlobalPrefixes {
+							for _, segPrefix := range segment.NetworkPrefixes {
+								if ifacePrefix == segPrefix {
+									hasMatchingPrefix = true
+									break
+								}
+							}
+							if hasMatchingPrefix {
+								break
+							}
+						}
+						
+						if hasMatchingPrefix {
+							nodeInterfaces = append(nodeInterfaces, ifaceName)
+						}
 					}
-
-					// Add RDMA info if present
-					if edge.RemoteRDMADevice != "" {
-						edgeLabel += fmt.Sprintf("\\n[%s]", edge.RemoteRDMADevice)
-					}
-
-					// Calculate line thickness based on speed
-					penwidth := calculatePenwidth(edge.RemoteSpeed)
-
-					// Solid lines with speed-based thickness for segment connections
-					styleAttr := fmt.Sprintf("style=solid, penwidth=%.1f, color=gray", penwidth)
-					if edge.RemoteRDMADevice != "" && edge.LocalRDMADevice != "" {
-						// RDMA segments get blue color
-						styleAttr = fmt.Sprintf("style=solid, penwidth=%.1f, color=blue", penwidth)
-					}
-
-					sb.WriteString(fmt.Sprintf("  \"%s\" -- \"%s\" [label=\"%s\", %s];\n",
-						segmentNodeID, ifaceNodeID, edgeLabel, styleAttr))
-				} else {
-					// No edge info - try to find any interface on this node
-					// (shouldn't happen with proper segment detection, but handle gracefully)
+				}
+				
+				// If no interfaces found, fall back to any connected interface
+				if len(nodeInterfaces) == 0 {
 					for iface := range connectedInterfaces[nodeID] {
-						ifaceNodeID := fmt.Sprintf("%s__%s", nodeID, iface)
-						sb.WriteString(fmt.Sprintf("  \"%s\" -- \"%s\" [style=solid, color=gray];\n",
-							segmentNodeID, ifaceNodeID))
-						break // Just connect to first interface
+						nodeInterfaces = append(nodeInterfaces, iface)
+						break // Just use first one as fallback
+					}
+				}
+				
+				// Connect segment to each interface this node uses
+				for _, ifaceName := range nodeInterfaces {
+					ifaceNodeID := fmt.Sprintf("%s__%s", nodeID, ifaceName)
+					
+					// Get edge info if available for this specific interface
+					var edgeLabel string
+					var penwidth float64 = 2.0
+					var styleAttr string = "style=solid, color=gray"
+					
+					if edge, hasEdge := segment.EdgeInfo[nodeID]; hasEdge && edge.RemoteInterface == ifaceName {
+						// Build edge label with address info
+						edgeLabel = edge.RemoteAddress
+						
+						// Add speed if available
+						if edge.RemoteSpeed > 0 {
+							edgeLabel += fmt.Sprintf("\\n%d Mbps", edge.RemoteSpeed)
+						} else {
+							// Check if this is a WiFi interface and show default speed
+							if strings.Contains(ifaceName, "wl") {
+								edgeLabel += "\\n100 Mbps"
+							}
+						}
+						
+						// Add RDMA info if present
+						if edge.RemoteRDMADevice != "" {
+							edgeLabel += fmt.Sprintf("\\n[%s]", edge.RemoteRDMADevice)
+						}
+						
+						// Calculate line thickness based on speed
+						penwidth = calculatePenwidth(edge.RemoteSpeed)
+						
+						// RDMA segments get blue color
+						if edge.RemoteRDMADevice != "" && edge.LocalRDMADevice != "" {
+							styleAttr = fmt.Sprintf("style=solid, penwidth=%.1f, color=blue", penwidth)
+						} else {
+							styleAttr = fmt.Sprintf("style=solid, penwidth=%.1f, color=gray", penwidth)
+						}
+					} else {
+						// No edge info for this interface, just connect with basic style
+						// Check node's interface details for speed/address
+						if node, exists := nodes[nodeID]; exists {
+							if ifaceDetails, ok := node.Interfaces[ifaceName]; ok {
+								edgeLabel = ifaceDetails.IPAddress
+								speed := ifaceDetails.Speed
+								if speed == 0 && strings.Contains(ifaceName, "wl") {
+									speed = 100 // Default WiFi
+								}
+								if speed > 0 {
+									edgeLabel += fmt.Sprintf("\\n%d Mbps", speed)
+								}
+								penwidth = calculatePenwidth(speed)
+								styleAttr = fmt.Sprintf("style=solid, penwidth=%.1f, color=gray", penwidth)
+							}
+						}
+					}
+					
+					if edgeLabel != "" {
+						sb.WriteString(fmt.Sprintf("  \"%s\" -- \"%s\" [label=\"%s\", %s];\n",
+							segmentNodeID, ifaceNodeID, edgeLabel, styleAttr))
+					} else {
+						sb.WriteString(fmt.Sprintf("  \"%s\" -- \"%s\" [%s];\n",
+							segmentNodeID, ifaceNodeID, styleAttr))
 					}
 				}
 			}
