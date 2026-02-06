@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/mdlayher/wifi"
 	"github.com/vishvananda/netlink"
 )
 
@@ -267,9 +268,70 @@ func getLinkSpeed(ifaceName string) int {
 	return 0
 }
 
-// getWiFiSpeed attempts to get the actual WiFi link speed using the iw tool
-// Returns 0 if the speed cannot be determined or if iw is not available
+// getWiFiSpeed attempts to get the actual WiFi link speed
+// First tries native nl80211 via github.com/mdlayher/wifi library
+// Falls back to iw tool if native method fails
+// Returns 0 if the speed cannot be determined
 func getWiFiSpeed(ifaceName string) int {
+	// Method 1: Try native nl80211 library (preferred)
+	if speed := getWiFiSpeedNative(ifaceName); speed > 0 {
+		return speed
+	}
+	
+	// Method 2: Fall back to iw command-line tool
+	return getWiFiSpeedIw(ifaceName)
+}
+
+// getWiFiSpeedNative uses nl80211 via github.com/mdlayher/wifi to get WiFi speed
+func getWiFiSpeedNative(ifaceName string) int {
+	client, err := wifi.New()
+	if err != nil {
+		// nl80211 not available or no permissions
+		return 0
+	}
+	defer client.Close()
+	
+	// Get all WiFi interfaces
+	interfaces, err := client.Interfaces()
+	if err != nil {
+		return 0
+	}
+	
+	// Find our interface
+	var targetIface *wifi.Interface
+	for _, iface := range interfaces {
+		if iface.Name == ifaceName {
+			targetIface = iface
+			break
+		}
+	}
+	
+	if targetIface == nil {
+		return 0
+	}
+	
+	// Get station info (connected AP)
+	stations, err := client.StationInfo(targetIface)
+	if err != nil || len(stations) == 0 {
+		return 0
+	}
+	
+	// Use the first station (typically the connected AP)
+	station := stations[0]
+	
+	// Return the higher of TX/RX bitrate in Mbps
+	// Bitrate is in bits per second, convert to Mbps
+	rxMbps := int(station.ReceiveBitrate / 1000000)
+	txMbps := int(station.TransmitBitrate / 1000000)
+	
+	if txMbps > rxMbps {
+		return txMbps
+	}
+	return rxMbps
+}
+
+// getWiFiSpeedIw uses the iw command-line tool to get WiFi speed
+func getWiFiSpeedIw(ifaceName string) int {
 	// Try common locations for iw tool
 	iwPaths := []string{
 		"/usr/sbin/iw",

@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Added
+- **Native nl80211 WiFi Speed Detection**: Replaced external `iw` tool dependency with native Go library (`github.com/mdlayher/wifi`) for WiFi speed detection. Provides direct kernel communication via netlink with fallback to iw tool if needed. No external dependencies required.
 - **WiFi Speed Detection**: Implemented actual WiFi link speed detection using the `iw` tool. Instead of assuming 100 Mbps for all WiFi interfaces, the daemon now queries the actual TX/RX bitrate via nl80211. Modern WiFi 6 connections (1200+ Mbps) are now correctly detected and visualized with appropriate line thickness in diagrams. Falls back to 100 Mbps if `iw` tool is not available. No root privileges required.
 - **Deterministic Graph Export**: All graph export formats (DOT, nwdiag, JSON) now produce deterministic, sorted output. Node IDs, interface names, and edge pairs are sorted alphabetically before iteration, ensuring identical output for identical input across multiple runs. This makes exports reproducible, version-control friendly, and easier to compare/debug. No performance impact on typical topologies.
 - **Multi-Prefix Network Segments**: Network segments now support multiple network prefixes (both IPv4 and IPv6) per segment. This correctly handles scenarios where hosts have multiple interfaces (wired + WiFi) connected to the same physical network, each with multiple addressing schemes.
