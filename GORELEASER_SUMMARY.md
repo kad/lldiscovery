@@ -130,21 +130,21 @@ GitHub Actions will automatically:
 
 ### Debian/Ubuntu
 ```bash
-wget https://github.com/akanevsk/lldiscovery/releases/download/v1.0.0/lldiscovery_1.0.0_linux_amd64.deb
+wget https://github.com/kad/lldiscovery/releases/download/v1.0.0/lldiscovery_1.0.0_linux_amd64.deb
 sudo dpkg -i lldiscovery_1.0.0_linux_amd64.deb
 sudo systemctl enable --now lldiscovery
 ```
 
 ### RHEL/CentOS/Fedora
 ```bash
-wget https://github.com/akanevsk/lldiscovery/releases/download/v1.0.0/lldiscovery_1.0.0_linux_amd64.rpm
+wget https://github.com/kad/lldiscovery/releases/download/v1.0.0/lldiscovery_1.0.0_linux_amd64.rpm
 sudo rpm -i lldiscovery_1.0.0_linux_amd64.rpm
 sudo systemctl enable --now lldiscovery
 ```
 
 ### Binary
 ```bash
-wget https://github.com/akanevsk/lldiscovery/releases/download/v1.0.0/lldiscovery_1.0.0_linux_amd64.tar.gz
+wget https://github.com/kad/lldiscovery/releases/download/v1.0.0/lldiscovery_1.0.0_linux_amd64.tar.gz
 tar xzf lldiscovery_1.0.0_linux_amd64.tar.gz
 sudo cp lldiscovery /usr/local/bin/
 # Manual setup required (see README.md)

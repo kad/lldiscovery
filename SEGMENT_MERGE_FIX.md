@@ -120,7 +120,7 @@ The merge function:
 ```bash
 $ go test ./internal/graph/...
 PASS
-ok      kad.name/lldiscovery/internal/graph     0.004s
+ok      github.com/kad/lldiscovery/internal/graph     0.004s
 ```
 ✅ All 33 graph tests passing
 
@@ -226,7 +226,7 @@ VLAN 200: 192.168.200.0/24 (5 nodes on em2)
 
 ### 1. Rebuild and Deploy
 ```bash
-cd /home/akanevsk/go/lldiscovery
+cd /home/user/go/lldiscovery
 go build ./cmd/lldiscovery
 
 # Deploy to all nodes

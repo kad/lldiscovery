@@ -230,7 +230,7 @@ All server tests pass:
 === RUN   TestHandleGraphMethodNotAllowed
 --- PASS: TestHandleGraphMethodNotAllowed (0.00s)
 PASS
-ok  	kad.name/lldiscovery/internal/server
+ok  	github.com/kad/lldiscovery/internal/server
 ```
 
 ## Backward Compatibility

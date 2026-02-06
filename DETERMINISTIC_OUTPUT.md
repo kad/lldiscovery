@@ -125,9 +125,9 @@ subgraph cluster_a68f2602... {
 ```plantuml
 network 10_0_0_0_24 {
     ad [address="fe80::...", description="ad"];
-    akanevsk_desk [address="fe80::...", description="akanevsk-desk"];
-    fork_kad_name [address="fe80::...", description="fork.kad.name"];
-    imini_v0_kad_name [address="fe80::...", description="imini.v0.kad.name"];
+    myhost [address="fe80::...", description="myhost"];
+    fork_example_com [address="fe80::...", description="fork.example.com"];
+    imini_v0_example_com [address="fe80::...", description="imini.v0.example.com"];
     srv [address="fe80::...", description="srv"];
 }
 ```

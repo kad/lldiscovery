@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"time"
 
-	"kad.name/lldiscovery/internal/export"
-	"kad.name/lldiscovery/internal/graph"
+	"github.com/kad/lldiscovery/internal/export"
+	"github.com/kad/lldiscovery/internal/graph"
 )
 
 type Server struct {

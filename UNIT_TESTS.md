@@ -112,15 +112,15 @@ Added comprehensive unit tests for core packages in lldiscovery to ensure code q
 
 ```bash
 $ go test ./... -cover
-ok      kad.name/lldiscovery/internal/config       0.002s  coverage: 89.4%
-ok      kad.name/lldiscovery/internal/discovery    0.014s  coverage: 36.0%
-ok      kad.name/lldiscovery/internal/graph        0.006s  coverage: 94.0%
+ok      github.com/kad/lldiscovery/internal/config       0.002s  coverage: 89.4%
+ok      github.com/kad/lldiscovery/internal/discovery    0.014s  coverage: 36.0%
+ok      github.com/kad/lldiscovery/internal/graph        0.006s  coverage: 94.0%
 
 ```bash
 $ go test ./... -cover
-ok      kad.name/lldiscovery/internal/config       coverage: 89.4%
-ok      kad.name/lldiscovery/internal/discovery    coverage: 35.8%
-ok      kad.name/lldiscovery/internal/graph        coverage: 94.0% ⭐
+ok      github.com/kad/lldiscovery/internal/config       coverage: 89.4%
+ok      github.com/kad/lldiscovery/internal/discovery    coverage: 35.8%
+ok      github.com/kad/lldiscovery/internal/graph        coverage: 94.0% ⭐
 
 $ ./test.sh
 ==> All tests passed! ✓

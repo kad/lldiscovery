@@ -99,7 +99,7 @@ Created test program to verify the fix:
 
 ```bash
 $ go run test_local_node_prefixes.go
-Local node: akanevsk-desk
+Local node: myhost
 Is Local: true
 
 Interfaces with prefixes:
@@ -163,10 +163,10 @@ The entire network prefix feature is now working end-to-end:
 ### Unit Tests
 ```bash
 $ go test ./...
-ok      kad.name/lldiscovery/internal/config    (cached)
-ok      kad.name/lldiscovery/internal/discovery (cached)
-ok      kad.name/lldiscovery/internal/graph     0.004s
-ok      kad.name/lldiscovery/internal/server    0.005s
+ok      github.com/kad/lldiscovery/internal/config    (cached)
+ok      github.com/kad/lldiscovery/internal/discovery (cached)
+ok      github.com/kad/lldiscovery/internal/graph     0.004s
+ok      github.com/kad/lldiscovery/internal/server    0.005s
 ```
 ✅ All 75 tests passing
 
@@ -184,7 +184,7 @@ Created and ran test program simulating main.go's local node initialization:
 
 ### 1. Rebuild
 ```bash
-cd /home/akanevsk/go/lldiscovery
+cd /home/user/go/lldiscovery
 go build ./cmd/lldiscovery
 ```
 

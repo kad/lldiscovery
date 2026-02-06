@@ -23,7 +23,7 @@ This guide covers deploying the complete network prefix feature, including:
 
 ```bash
 # 1. Build
-cd /home/akanevsk/go/lldiscovery
+cd /home/user/go/lldiscovery
 make build
 
 # 2. Deploy (choose your method below)
@@ -40,7 +40,7 @@ curl http://localhost:6469/graph | jq '.nodes | .[] | select(.IsLocal == true) |
 ### 1. Build Binary
 
 ```bash
-cd /home/akanevsk/go/lldiscovery
+cd /home/user/go/lldiscovery
 
 # Option A: Using Makefile
 make build

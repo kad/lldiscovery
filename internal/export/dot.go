@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"kad.name/lldiscovery/internal/graph"
+	"github.com/kad/lldiscovery/internal/graph"
 )
 
 // calculatePenwidth returns the line thickness based on link speed in Mbps

@@ -8,7 +8,7 @@ import (
 	"os"
 	"testing"
 
-	"kad.name/lldiscovery/internal/graph"
+	"github.com/kad/lldiscovery/internal/graph"
 )
 
 func createTestGraph() *graph.Graph {

@@ -1,8 +1,9 @@
-module kad.name/lldiscovery
+module github.com/kad/lldiscovery
 
 go 1.25.6
 
 require (
+	github.com/mdlayher/wifi v0.7.2
 	github.com/vishvananda/netlink v1.3.1
 	go.opentelemetry.io/otel v1.40.0
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc v0.16.0
@@ -31,7 +32,6 @@ require (
 	github.com/mdlayher/genetlink v1.3.2 // indirect
 	github.com/mdlayher/netlink v1.8.0 // indirect
 	github.com/mdlayher/socket v0.5.1 // indirect
-	github.com/mdlayher/wifi v0.7.2 // indirect
 	github.com/vishvananda/netns v0.0.5 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.40.0 // indirect

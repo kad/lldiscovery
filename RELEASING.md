@@ -64,7 +64,7 @@ When you push a tag starting with `v`:
 
 ### 5. Verify Release
 
-Check the [Releases page](https://github.com/akanevsk/lldiscovery/releases) to ensure:
+Check the [Releases page](https://github.com/kad/lldiscovery/releases) to ensure:
 - Binary archives are available
 - .deb package is available
 - .rpm package is available

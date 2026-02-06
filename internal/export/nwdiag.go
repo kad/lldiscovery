@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"kad.name/lldiscovery/internal/graph"
+	"github.com/kad/lldiscovery/internal/graph"
 )
 
 // ExportNwdiag generates a PlantUML nwdiag format representation of the network topology

@@ -39,7 +39,7 @@ archives:
 nfpms:
   - id: lldiscovery
     package_name: lldiscovery
-    homepage: https://github.com/akanevsk/lldiscovery
+    homepage: https://github.com/kad/lldiscovery
     maintainer: Your Name <your.email@example.com>
     description: Network discovery daemon for VLAN-segmented environments using IPv6 link-local multicast
     license: MIT
@@ -118,7 +118,7 @@ changelog:
 
 release:
   github:
-    owner: akanevsk
+    owner: kad
     name: lldiscovery
   
   prerelease: auto
@@ -130,19 +130,19 @@ release:
     
     ### Debian/Ubuntu (.deb)
     ```bash
-    wget https://github.com/akanevsk/lldiscovery/releases/download/{{ .Tag }}/lldiscovery_{{ .Version }}_linux_amd64.deb
+    wget https://github.com/kad/lldiscovery/releases/download/{{ .Tag }}/lldiscovery_{{ .Version }}_linux_amd64.deb
     sudo dpkg -i lldiscovery_{{ .Version }}_linux_amd64.deb
     ```
     
     ### RHEL/CentOS/Fedora (.rpm)
     ```bash
-    wget https://github.com/akanevsk/lldiscovery/releases/download/{{ .Tag }}/lldiscovery_{{ .Version }}_linux_amd64.rpm
+    wget https://github.com/kad/lldiscovery/releases/download/{{ .Tag }}/lldiscovery_{{ .Version }}_linux_amd64.rpm
     sudo rpm -i lldiscovery_{{ .Version }}_linux_amd64.rpm
     ```
     
     ### Binary
     ```bash
-    wget https://github.com/akanevsk/lldiscovery/releases/download/{{ .Tag }}/lldiscovery_{{ .Version }}_linux_amd64.tar.gz
+    wget https://github.com/kad/lldiscovery/releases/download/{{ .Tag }}/lldiscovery_{{ .Version }}_linux_amd64.tar.gz
     tar xzf lldiscovery_{{ .Version }}_linux_amd64.tar.gz
     sudo cp lldiscovery /usr/local/bin/
     ```

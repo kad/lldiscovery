@@ -12,12 +12,12 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel/metric"
-	"kad.name/lldiscovery/internal/config"
-	"kad.name/lldiscovery/internal/discovery"
-	"kad.name/lldiscovery/internal/export"
-	"kad.name/lldiscovery/internal/graph"
-	"kad.name/lldiscovery/internal/server"
-	"kad.name/lldiscovery/internal/telemetry"
+	"github.com/kad/lldiscovery/internal/config"
+	"github.com/kad/lldiscovery/internal/discovery"
+	"github.com/kad/lldiscovery/internal/export"
+	"github.com/kad/lldiscovery/internal/graph"
+	"github.com/kad/lldiscovery/internal/server"
+	"github.com/kad/lldiscovery/internal/telemetry"
 )
 
 var (

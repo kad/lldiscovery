@@ -120,7 +120,7 @@ The local node's direct connections (edges with LocalInterface) are critical for
 ```bash
 $ go test ./internal/graph/...
 PASS
-ok      kad.name/lldiscovery/internal/graph     0.004s
+ok      github.com/kad/lldiscovery/internal/graph     0.004s
 ```
 ✅ All 33 graph tests passing
 
@@ -134,10 +134,10 @@ $ go build ./cmd/lldiscovery
 ```bash
 # All 75 tests passing
 $ go test ./...
-ok      kad.name/lldiscovery/internal/config    (cached)
-ok      kad.name/lldiscovery/internal/discovery (cached)
-ok      kad.name/lldiscovery/internal/graph     0.006s
-ok      kad.name/lldiscovery/internal/server    0.006s
+ok      github.com/kad/lldiscovery/internal/config    (cached)
+ok      github.com/kad/lldiscovery/internal/discovery (cached)
+ok      github.com/kad/lldiscovery/internal/graph     0.006s
+ok      github.com/kad/lldiscovery/internal/server    0.006s
 ```
 
 ## Edge Cases Handled
@@ -254,7 +254,7 @@ This fix works together with the segment merging feature:
 
 ### Deploy
 ```bash
-cd /home/akanevsk/go/lldiscovery
+cd /home/user/go/lldiscovery
 go build ./cmd/lldiscovery
 # Deploy to all nodes
 systemctl restart lldiscovery

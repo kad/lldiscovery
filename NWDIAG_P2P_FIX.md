@@ -19,13 +19,13 @@ network p2p_1 {
   address = "P2P (585 Mbps)"
   color = "#D3D3D3"
   bc [address = "fe80::3aba:f8ff:fe2b:3798 (wlp0s20f3)", description = "bc"];
-  imini_v0_kad_name [address = "fe80::4d33:38aa:c0c4:5c0a (wlp2s0)", description = "imini.v0.kad.name"];
+  imini_v0_example_com [address = "fe80::4d33:38aa:c0c4:5c0a (wlp2s0)", description = "imini.v0.example.com"];
 }
 network p2p_2 {
   address = "P2P (1000 Mbps, RDMA)"
   color = "#87CEEB"
   ad [address = "fe80::f103:3b84:40b1:342e (eno1, rxe0)", description = "ad"];
-  imini_v0_kad_name [address = "fe80::4d33:38aa:c0c4:5c0a (wlp2s0)", description = "imini.v0.kad.name"];
+  imini_v0_example_com [address = "fe80::4d33:38aa:c0c4:5c0a (wlp2s0)", description = "imini.v0.example.com"];
 }
 ```
 
@@ -83,14 +83,14 @@ Segment has 6 nodes:
 - `ad` (eno1)
 - `imini` (enp1s0f0, wlp2s0)  ← Has TWO interfaces!
 - `fork` (eno1, wlp0s20f3)     ← Has TWO interfaces!
-- `akanevsk-desk` (enp0s31f6, wlp0s20f3)  ← Local node, TWO interfaces!
+- `myhost` (enp0s31f6, wlp0s20f3)  ← Local node, TWO interfaces!
 - `srv` (enp0s31f6)
 
 The guessing logic might assign:
 - `bc` → wlp0s20f3 ✓ (correct)
 - `ad` → eno1 ✓ (correct)
 - `imini` → eno1 ✗ (wrong! should be enp1s0f0 or wlp2s0)
-- `akanevsk-desk` → eno1 ✗ (wrong! should be enp0s31f6 or wlp0s20f3)
+- `myhost` → eno1 ✗ (wrong! should be enp0s31f6 or wlp0s20f3)
 
 When marking edges:
 ```go
@@ -259,9 +259,9 @@ nwdiag {
     color = "#87CEEB"
     bc [address = "fe80::... (enp0s31f6, 1000 Mbps, rxe0)", description = "bc"];
     ad [address = "fe80::... (enp0s31f6, 1000 Mbps, rxe0)", description = "ad"];
-    imini_v0_kad_name [address = "fe80::... (enp0s31f6, 1000 Mbps, rxe0)", description = "imini.v0.kad.name"];
-    fork_kad_name [address = "fe80::... (enp0s31f6, 1000 Mbps, rxe0)", description = "fork.kad.name"];
-    akanevsk_desk [description = "akanevsk-desk", color = "#90EE90"];
+    imini_v0_example_com [address = "fe80::... (enp0s31f6, 1000 Mbps, rxe0)", description = "imini.v0.example.com"];
+    fork_example_com [address = "fe80::... (enp0s31f6, 1000 Mbps, rxe0)", description = "fork.example.com"];
+    myhost [description = "myhost", color = "#90EE90"];
     srv [address = "fe80::... (enp0s31f6, 1000 Mbps, rxe0)", description = "srv"];
   }
   network p2p_1 {

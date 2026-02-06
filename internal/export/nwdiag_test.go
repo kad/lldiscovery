@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"kad.name/lldiscovery/internal/graph"
+	"github.com/kad/lldiscovery/internal/graph"
 )
 
 func TestExportNwdiag(t *testing.T) {

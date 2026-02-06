@@ -27,7 +27,7 @@ In DOT/Graphviz output:
 $ curl -s http://localhost:6469/graph | jq
 {
   "dd0621083f6949caafc297ee5711fbdf": {
-    "Hostname": "akanevsk-desk",
+    "Hostname": "myhost",
     "MachineID": "dd0621083f6949caafc297ee5711fbdf",
     "LastSeen": "2026-02-04T23:23:06.123534219+02:00",
     "Interfaces": {
@@ -38,7 +38,7 @@ $ curl -s http://localhost:6469/graph | jq
     "IsLocal": true  ← Indicates this is the local node
   },
   "4c8709eab8394194bfb7ac8b768cd314": {
-    "Hostname": "imini.v0.kad.name",
+    "Hostname": "imini.v0.example.com",
     "MachineID": "4c8709eab8394194bfb7ac8b768cd314",
     "LastSeen": "2026-02-04T23:23:05.456789012+02:00",
     "Interfaces": {
@@ -56,10 +56,10 @@ graph lldiscovery {
   rankdir=LR;
   node [shape=box, style=rounded];
 
-  "dd062108" [label="akanevsk-desk (local)\ndd062108\neth0: fe80::1", 
+  "dd062108" [label="myhost (local)\ndd062108\neth0: fe80::1", 
               style="rounded,filled", fillcolor="lightblue"];  ← Blue background
   
-  "4c8709ea" [label="imini.v0.kad.name\n4c8709ea\neth0: fe80::2"];  ← Standard node
+  "4c8709ea" [label="imini.v0.example.com\n4c8709ea\neth0: fe80::2"];  ← Standard node
 }
 ```
 
@@ -69,7 +69,7 @@ The daemon logs when the local node is added:
 
 ```
 time=2026-02-04T23:21:46.921+02:00 level=INFO msg="starting lldiscovery" version=dev
-time=2026-02-04T23:21:46.921+02:00 level=INFO msg="local node added to graph" hostname=akanevsk-desk interfaces=5
+time=2026-02-04T23:21:46.921+02:00 level=INFO msg="local node added to graph" hostname=myhost interfaces=5
 ```
 
 ## Implementation Details

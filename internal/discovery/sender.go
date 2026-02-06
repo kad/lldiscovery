@@ -12,7 +12,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
-	"kad.name/lldiscovery/internal/graph"
+	"github.com/kad/lldiscovery/internal/graph"
 )
 
 type NeighborProvider interface {

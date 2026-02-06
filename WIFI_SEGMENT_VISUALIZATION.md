@@ -15,7 +15,7 @@ In test cluster data, several nodes have BOTH wired AND WiFi interfaces on the s
 **Example from segment_0:**
 - **imini**: enp1s0f0 (wired) + wlp2s0 (WiFi) - both have 10.0.0.0/24, fd66:cd1e:5ac2:9f5d::/64, etc.
 - **fork**: eno1 (wired) + wlp0s20f3 (WiFi) - both have 10.0.0.0/24, fd66:cd1e:5ac2:9f5d::/64, etc.
-- **akanevsk-desk**: enp0s31f6 (wired) + wlp0s20f3 (WiFi) - both have 10.0.0.0/24, fd66:cd1e:5ac2:9f5d::/64, etc.
+- **myhost**: enp0s31f6 (wired) + wlp0s20f3 (WiFi) - both have 10.0.0.0/24, fd66:cd1e:5ac2:9f5d::/64, etc.
 - **srv**: eno1 (wired) + wlp58s0 (WiFi) - both have 10.0.0.0/24, fd66:cd1e:5ac2:9f5d::/64, etc.
 
 **Previous behavior:**

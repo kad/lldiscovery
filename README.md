@@ -35,13 +35,13 @@ Network discovery daemon for VLAN-segmented environments using IPv6 link-local m
 
 **Debian/Ubuntu (.deb):**
 ```bash
-wget https://github.com/akanevsk/lldiscovery/releases/latest/download/lldiscovery_VERSION_linux_amd64.deb
+wget https://github.com/kad/lldiscovery/releases/latest/download/lldiscovery_VERSION_linux_amd64.deb
 sudo dpkg -i lldiscovery_VERSION_linux_amd64.deb
 ```
 
 **RHEL/CentOS/Fedora (.rpm):**
 ```bash
-wget https://github.com/akanevsk/lldiscovery/releases/latest/download/lldiscovery_VERSION_linux_amd64.rpm
+wget https://github.com/kad/lldiscovery/releases/latest/download/lldiscovery_VERSION_linux_amd64.rpm
 sudo rpm -i lldiscovery_VERSION_linux_amd64.rpm
 ```
 
@@ -70,10 +70,10 @@ journalctl -u lldiscovery -f
 
 ### From Binary
 
-Download the latest binary from [releases](https://github.com/akanevsk/lldiscovery/releases):
+Download the latest binary from [releases](https://github.com/kad/lldiscovery/releases):
 
 ```bash
-wget https://github.com/akanevsk/lldiscovery/releases/latest/download/lldiscovery_VERSION_linux_amd64.tar.gz
+wget https://github.com/kad/lldiscovery/releases/latest/download/lldiscovery_VERSION_linux_amd64.tar.gz
 tar xzf lldiscovery_VERSION_linux_amd64.tar.gz
 sudo cp lldiscovery /usr/local/bin/
 sudo chmod +x /usr/local/bin/lldiscovery

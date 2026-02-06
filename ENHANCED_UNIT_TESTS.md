@@ -123,9 +123,9 @@ Testing of interface detection, IPv6 address handling, and RDMA device discovery
 
 ```bash
 $ go test ./... -cover
-ok      kad.name/lldiscovery/internal/config       0.002s  coverage: 89.4%
-ok      kad.name/lldiscovery/internal/discovery    0.014s  coverage: 36.0%
-ok      kad.name/lldiscovery/internal/graph        0.006s  coverage: 94.0%
+ok      github.com/kad/lldiscovery/internal/config       0.002s  coverage: 89.4%
+ok      github.com/kad/lldiscovery/internal/discovery    0.014s  coverage: 36.0%
+ok      github.com/kad/lldiscovery/internal/graph        0.006s  coverage: 94.0%
 ```
 
 **All 55 unit tests passing ✅**
