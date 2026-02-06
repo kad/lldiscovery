@@ -68,75 +68,97 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 	if len(segments) > 0 {
 		// Mark ALL edges between segment members (not just from local node)
 		for _, segment := range segments {
-			// Build a map of which interface each node uses in this segment
-			nodeInterfaces := make(map[string]string) // nodeID -> interface name
+			// Build a map of which interfaces each node uses in this segment
+			// A node can have MULTIPLE interfaces on the same segment (e.g., wired + WiFi)
+			nodeInterfaces := make(map[string][]string) // nodeID -> list of interface names
 
 			// Collect interface information from EdgeInfo
 			for nodeID, edgeInfo := range segment.EdgeInfo {
 				if edgeInfo.RemoteInterface != "" {
 					// This is the interface the remote node uses
-					nodeInterfaces[nodeID] = edgeInfo.RemoteInterface
-				}
-				// Also track the local node's interface (if present in LocalInterface)
-				if edgeInfo.LocalInterface != "" {
-					// Find which node is the local/reference node
-					// It's the one that appears in most EdgeInfo entries with same LocalInterface
-					// For now, just collect it - we'll identify the reference node below
+					nodeInterfaces[nodeID] = append(nodeInterfaces[nodeID], edgeInfo.RemoteInterface)
 				}
 			}
 
 			// Try to identify the reference/local node by finding LocalInterface
-			var referenceInterface string
+			var referenceInterfaces []string
 			for _, edgeInfo := range segment.EdgeInfo {
 				if edgeInfo.LocalInterface != "" {
-					referenceInterface = edgeInfo.LocalInterface
-					break
-				}
-			}
-
-			// If we found a reference interface, find which node(s) don't have EdgeInfo entry
-			// or have null RemoteInterface - those likely use the reference interface
-			if referenceInterface != "" {
-				for _, nodeID := range segment.ConnectedNodes {
-					if _, exists := nodeInterfaces[nodeID]; !exists {
-						// No interface info for this node, it might be the reference node
-						nodeInterfaces[nodeID] = referenceInterface
+					// Collect all unique local interfaces
+					found := false
+					for _, iface := range referenceInterfaces {
+						if iface == edgeInfo.LocalInterface {
+							found = true
+							break
+						}
+					}
+					if !found {
+						referenceInterfaces = append(referenceInterfaces, edgeInfo.LocalInterface)
 					}
 				}
 			}
 
-			// If still missing interfaces, use segment.Interface as fallback
+			// For nodes without EdgeInfo, check if they have interfaces with segment's prefixes
 			for _, nodeID := range segment.ConnectedNodes {
-				if _, exists := nodeInterfaces[nodeID]; !exists {
-					nodeInterfaces[nodeID] = segment.Interface
+				if len(nodeInterfaces[nodeID]) == 0 {
+					// No interface info from EdgeInfo, check node's interfaces against segment prefixes
+					if node, exists := nodes[nodeID]; exists {
+						for ifaceName, ifaceDetails := range node.Interfaces {
+							// Check if this interface has any of the segment's prefixes
+							for _, ifacePrefix := range ifaceDetails.GlobalPrefixes {
+								for _, segPrefix := range segment.NetworkPrefixes {
+									if ifacePrefix == segPrefix {
+										// This interface is on this segment
+										nodeInterfaces[nodeID] = append(nodeInterfaces[nodeID], ifaceName)
+										break
+									}
+								}
+							}
+						}
+					}
+					
+					// If still no interfaces found, use reference interfaces as fallback
+					if len(nodeInterfaces[nodeID]) == 0 && len(referenceInterfaces) > 0 {
+						nodeInterfaces[nodeID] = referenceInterfaces
+					}
+					
+					// Final fallback: use segment.Interface
+					if len(nodeInterfaces[nodeID]) == 0 {
+						nodeInterfaces[nodeID] = []string{segment.Interface}
+					}
 				}
 			}
 
-			// For each pair of nodes in this segment
+			// For each pair of nodes in this segment, mark ALL interface combinations
 			for i, nodeA := range segment.ConnectedNodes {
 				for j, nodeB := range segment.ConnectedNodes {
 					if i >= j {
 						continue // Skip self and duplicates
 					}
 
-					// Get the interfaces these nodes use
-					interfaceA := nodeInterfaces[nodeA]
-					interfaceB := nodeInterfaces[nodeB]
+					// Get all interfaces these nodes use
+					interfacesA := nodeInterfaces[nodeA]
+					interfacesB := nodeInterfaces[nodeB]
 
-					// Mark edges in both directions
-					key1 := nodeA + ":" + nodeB
-					key2 := nodeB + ":" + nodeA
+					// Mark edges for ALL interface combinations
+					for _, interfaceA := range interfacesA {
+						for _, interfaceB := range interfacesB {
+							// Mark edges in both directions
+							key1 := nodeA + ":" + nodeB
+							key2 := nodeB + ":" + nodeA
 
-					if segmentEdgeMap[key1] == nil {
-						segmentEdgeMap[key1] = make(map[string]bool)
+							if segmentEdgeMap[key1] == nil {
+								segmentEdgeMap[key1] = make(map[string]bool)
+							}
+							if segmentEdgeMap[key2] == nil {
+								segmentEdgeMap[key2] = make(map[string]bool)
+							}
+
+							// Mark this edge on these interfaces as part of segment
+							segmentEdgeMap[key1][interfaceA] = true
+							segmentEdgeMap[key2][interfaceB] = true
+						}
 					}
-					if segmentEdgeMap[key2] == nil {
-						segmentEdgeMap[key2] = make(map[string]bool)
-					}
-
-					// Mark this edge on these interfaces as part of segment
-					segmentEdgeMap[key1][interfaceA] = true
-					segmentEdgeMap[key2][interfaceB] = true
 				}
 			}
 		}

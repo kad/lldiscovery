@@ -640,8 +640,43 @@ func (g *Graph) GetNetworkSegments() []NetworkSegment {
 	// Create segments for remote VLANs with 3+ nodes
 	// BUT: verify nodes are actually connected (not just using same interface name)
 	for ifaceName, nodeEdges := range remoteInterfaceGroups {
-		if len(nodeEdges) < 3 {
-			continue // Need at least 3 nodes for a segment
+		minNodes := 3
+		
+		// Special case: For 2-node groups, check if they share a network prefix
+		// This handles VLANs or segments with only 2 participating nodes
+		if len(nodeEdges) == 2 {
+			// Check if these 2 nodes share any network prefix
+			var nodePrefixes [][]string
+			for nodeID, edge := range nodeEdges {
+				if node, exists := g.nodes[nodeID]; exists {
+					if iface, ok := node.Interfaces[edge.LocalInterface]; ok {
+						nodePrefixes = append(nodePrefixes, iface.GlobalPrefixes)
+					}
+				}
+			}
+			
+			// If both nodes have prefixes and share at least one, treat as segment
+			if len(nodePrefixes) == 2 && len(nodePrefixes[0]) > 0 && len(nodePrefixes[1]) > 0 {
+				hasSharedPrefix := false
+				for _, p1 := range nodePrefixes[0] {
+					for _, p2 := range nodePrefixes[1] {
+						if p1 == p2 {
+							hasSharedPrefix = true
+							break
+						}
+					}
+					if hasSharedPrefix {
+						break
+					}
+				}
+				if hasSharedPrefix {
+					minNodes = 2 // Allow 2-node segments if they share a prefix
+				}
+			}
+		}
+		
+		if len(nodeEdges) < minNodes {
+			continue // Need at least minNodes for a segment
 		}
 
 		// Build connectivity graph for this interface
@@ -689,8 +724,9 @@ func (g *Graph) GetNetworkSegments() []NetworkSegment {
 				}
 			}
 
-			// Create segment if this component has 3+ nodes
-			if len(component) < 3 {
+			// Create segment if this component meets the minimum node requirement
+			// (usually 3+, but can be 2 if they share a network prefix)
+			if len(component) < minNodes {
 				continue
 			}
 

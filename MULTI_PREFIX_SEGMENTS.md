@@ -142,12 +142,14 @@ Key differences:
 - [ ] Check DOT visualization shows multiple prefixes
 - [ ] Check nwdiag shows all prefixes in address
 - [ ] Verify JSON exports both fields correctly
+- [ ] Verify 2-node VLANs with shared prefixes detected as segments
 
 ### Test Scenarios
 1. **Multi-interface node**: Host with eth0 + wlan0 on same network
 2. **Multi-prefix network**: Network with IPv4 + ULA + GUA
 3. **WiFi-only node**: Node with only WiFi interface (Speed=0)
 4. **Mixed speeds**: Nodes with 1G wired + WiFi on same segment
+5. **2-node VLAN**: br10/vlan10 with shared 10.0.3.0/24 prefix (s-n*.json)
 
 ## Known Limitations
 
