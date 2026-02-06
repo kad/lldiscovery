@@ -1,0 +1,21 @@
+{
+  "send_interval": "30s",
+  "node_timeout": "120s",
+  "export_interval": "60s",
+  "multicast_address": "ff02::4c4c:6469",
+  "multicast_port": 9999,
+  "output_file": "/var/lib/lldiscovery/topology.dot",
+  "http_address": ":6469",
+  "log_level": "info",
+  "include_neighbors": false,
+  "show_segments": false,
+  "telemetry": {
+    "enabled": false,
+    "endpoint": "grpc://localhost:4317",
+    "protocol": "grpc",
+    "insecure": true,
+    "enable_traces": true,
+    "enable_metrics": true,
+    "enable_logs": false
+  }
+}
