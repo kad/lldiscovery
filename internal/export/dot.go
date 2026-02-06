@@ -236,12 +236,19 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 		for i, segment := range segments {
 			segmentNodeID := fmt.Sprintf("segment_%d", i)
 
-			// Build segment label - prefer network prefix over interface name
+			// Build segment label - show all network prefixes
 			var segmentLabel string
-			if segment.NetworkPrefix != "" {
-				// Use network prefix as primary label
-				segmentLabel = fmt.Sprintf("%s\\n%d nodes", segment.NetworkPrefix, len(segment.ConnectedNodes))
-				// Add interface name as secondary info if different from prefix
+			if len(segment.NetworkPrefixes) > 0 {
+				// Use all network prefixes as primary label
+				// If more than 3 prefixes, show first 3 and "..."
+				prefixLabel := ""
+				if len(segment.NetworkPrefixes) <= 3 {
+					prefixLabel = strings.Join(segment.NetworkPrefixes, "\\n")
+				} else {
+					prefixLabel = strings.Join(segment.NetworkPrefixes[:3], "\\n") + "\\n..."
+				}
+				segmentLabel = fmt.Sprintf("%s\\n%d nodes", prefixLabel, len(segment.ConnectedNodes))
+				// Add interface name as secondary info
 				segmentLabel += fmt.Sprintf("\\n(%s)", segment.Interface)
 			} else {
 				// Fall back to interface name

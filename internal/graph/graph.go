@@ -3,6 +3,7 @@ package graph
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -508,11 +509,12 @@ func (g *Graph) GetDirectNeighbors() []NeighborData {
 
 // NetworkSegment represents a group of nodes reachable on a shared network (switch/VLAN)
 type NetworkSegment struct {
-	ID             string           // Unique ID for this segment
-	Interface      string           // Local interface name (e.g., "eth0")
-	NetworkPrefix  string           // Network prefix hint (e.g., "2001:db8:1::/64"), empty if unavailable
-	ConnectedNodes []string         // Machine IDs of nodes in this segment
-	EdgeInfo       map[string]*Edge // Map of nodeID -> edge info for connections to segment
+	ID              string           // Unique ID for this segment
+	Interface       string           // Primary interface name (e.g., "eth0")
+	NetworkPrefix   string           // Primary network prefix (first in NetworkPrefixes), for backward compatibility
+	NetworkPrefixes []string         // All network prefixes on this segment (both IPv4 and IPv6)
+	ConnectedNodes  []string         // Machine IDs of nodes in this segment
+	EdgeInfo        map[string]*Edge // Map of nodeID -> edge info for connections to segment
 }
 
 // GetNetworkSegments finds groups of nodes connected to shared network segments
@@ -569,15 +571,20 @@ func (g *Graph) GetNetworkSegments() []NetworkSegment {
 
 			sort.Strings(nodeIDs)
 
-			// Determine network prefix hint
-			networkPrefix := g.getMostCommonPrefix(nodeIDs, edgeInfo)
+			// Collect all network prefixes
+			allPrefixes := g.getAllPrefixes(nodeIDs, edgeInfo)
+			primaryPrefix := ""
+			if len(allPrefixes) > 0 {
+				primaryPrefix = allPrefixes[0]
+			}
 
 			segments = append(segments, NetworkSegment{
-				ID:             fmt.Sprintf("segment_%d", segmentID),
-				Interface:      localIface,
-				NetworkPrefix:  networkPrefix,
-				ConnectedNodes: nodeIDs,
-				EdgeInfo:       edgeInfo,
+				ID:              fmt.Sprintf("segment_%d", segmentID),
+				Interface:       localIface,
+				NetworkPrefix:   primaryPrefix,
+				NetworkPrefixes: allPrefixes,
+				ConnectedNodes:  nodeIDs,
+				EdgeInfo:        edgeInfo,
 			})
 			segmentID++
 		}
@@ -697,25 +704,93 @@ func (g *Graph) GetNetworkSegments() []NetworkSegment {
 
 			sort.Strings(component)
 
-			// Determine network prefix hint for this component
-			networkPrefix := g.getMostCommonPrefix(component, componentEdgeInfo)
+			// Collect all network prefixes for this component
+			allPrefixes := g.getAllPrefixes(component, componentEdgeInfo)
+			primaryPrefix := ""
+			if len(allPrefixes) > 0 {
+				primaryPrefix = allPrefixes[0]
+			}
 
 			segments = append(segments, NetworkSegment{
-				ID:             fmt.Sprintf("segment_%d", segmentID),
-				Interface:      ifaceName,
-				NetworkPrefix:  networkPrefix,
-				ConnectedNodes: component,
-				EdgeInfo:       componentEdgeInfo,
+				ID:              fmt.Sprintf("segment_%d", segmentID),
+				Interface:       ifaceName,
+				NetworkPrefix:   primaryPrefix,
+				NetworkPrefixes: allPrefixes,
+				ConnectedNodes:  component,
+				EdgeInfo:        componentEdgeInfo,
 			})
 			segmentID++
 		}
 	}
 
-	// Merge segments that share the same network prefix
+	// First merge segments with same network prefix (existing logic)
 	// This handles cases where different interfaces (em1, br112, etc.) are on the same subnet
 	segments = mergeSegmentsByPrefix(segments)
 
+	// Then merge segments with same node set but different prefixes
+	// This handles cases where nodes have multiple interfaces (wired + WiFi) on same network
+	segments = mergeSegmentsByNodeSet(segments, g)
+
 	return segments
+}
+
+// getEffectiveSpeed returns the effective speed for an interface
+// WiFi interfaces often report 0, so we default them to 100 Mbps
+func getEffectiveSpeed(speed int, interfaceName string) int {
+	if speed == 0 {
+		// WiFi interfaces (wlan, wlp, wl*) typically report 0
+		if strings.Contains(interfaceName, "wl") {
+			return 100 // Default WiFi to 100 Mbps
+		}
+		return 100 // Default any unknown speed to 100 Mbps
+	}
+	return speed
+}
+
+// getAllPrefixes collects all unique network prefixes from the given nodes
+// Returns a sorted list of all IPv4 and IPv6 prefixes found
+func (g *Graph) getAllPrefixes(nodeIDs []string, edgeInfo map[string]*Edge) []string {
+	prefixSet := make(map[string]bool)
+
+	// Collect prefixes from each node's interface
+	for _, nodeID := range nodeIDs {
+		var prefixes []string
+
+		if nodeID == g.localNode.MachineID {
+			// For local node, get prefixes from the edge's local interface
+			for _, edge := range edgeInfo {
+				if localDetails, ok := g.localNode.Interfaces[edge.LocalInterface]; ok {
+					prefixes = localDetails.GlobalPrefixes
+					break // All edges use same local interface
+				}
+			}
+		} else {
+			// For remote nodes, get prefixes from the edge's remote interface
+			if edge, ok := edgeInfo[nodeID]; ok {
+				if remoteNode, exists := g.nodes[nodeID]; exists {
+					if remoteDetails, ok := remoteNode.Interfaces[edge.RemoteInterface]; ok {
+						prefixes = remoteDetails.GlobalPrefixes
+					}
+				}
+			}
+		}
+
+		// Add each prefix to the set
+		for _, prefix := range prefixes {
+			if prefix != "" {
+				prefixSet[prefix] = true
+			}
+		}
+	}
+
+	// Convert to sorted list
+	prefixList := make([]string, 0, len(prefixSet))
+	for prefix := range prefixSet {
+		prefixList = append(prefixList, prefix)
+	}
+	sort.Strings(prefixList)
+
+	return prefixList
 }
 
 // getMostCommonPrefix returns the most frequently occurring network prefix
@@ -853,12 +928,28 @@ func mergeSegmentsByPrefix(segments []NetworkSegment) []NetworkSegment {
 		sort.Strings(interfaceList)
 		primaryInterface := interfaceList[0]
 
+		// Collect all unique prefixes from merged segments
+		allPrefixes := make(map[string]bool)
+		for _, idx := range indices {
+			for _, p := range segments[idx].NetworkPrefixes {
+				if p != "" {
+					allPrefixes[p] = true
+				}
+			}
+		}
+		prefixList := make([]string, 0, len(allPrefixes))
+		for p := range allPrefixes {
+			prefixList = append(prefixList, p)
+		}
+		sort.Strings(prefixList)
+
 		result = append(result, NetworkSegment{
-			ID:             fmt.Sprintf("segment_%d", nextID),
-			Interface:      primaryInterface,
-			NetworkPrefix:  prefix,
-			ConnectedNodes: nodeList,
-			EdgeInfo:       mergedEdgeInfo,
+			ID:              fmt.Sprintf("segment_%d", nextID),
+			Interface:       primaryInterface,
+			NetworkPrefix:   prefix,
+			NetworkPrefixes: prefixList,
+			ConnectedNodes:  nodeList,
+			EdgeInfo:        mergedEdgeInfo,
 		})
 		nextID++
 	}
@@ -867,11 +958,171 @@ func mergeSegmentsByPrefix(segments []NetworkSegment) []NetworkSegment {
 	for i, seg := range segments {
 		if !merged[i] {
 			result = append(result, NetworkSegment{
-				ID:             fmt.Sprintf("segment_%d", nextID),
-				Interface:      seg.Interface,
-				NetworkPrefix:  seg.NetworkPrefix,
-				ConnectedNodes: seg.ConnectedNodes,
-				EdgeInfo:       seg.EdgeInfo,
+				ID:              fmt.Sprintf("segment_%d", nextID),
+				Interface:       seg.Interface,
+				NetworkPrefix:   seg.NetworkPrefix,
+				NetworkPrefixes: seg.NetworkPrefixes,
+				ConnectedNodes:  seg.ConnectedNodes,
+				EdgeInfo:        seg.EdgeInfo,
+			})
+			nextID++
+		}
+	}
+
+	return result
+}
+
+// mergeSegmentsByNodeSet merges segments that have the same set of connected nodes
+// This handles cases where nodes have multiple interfaces (wired + WiFi) on the same physical network
+// Each interface may have different prefixes, but they're all on the same segment
+func mergeSegmentsByNodeSet(segments []NetworkSegment, g *Graph) []NetworkSegment {
+	if len(segments) == 0 {
+		return segments
+	}
+
+	// Create a canonical key for a node set (sorted, comma-separated)
+	makeNodeSetKey := func(nodes []string) string {
+		sorted := make([]string, len(nodes))
+		copy(sorted, nodes)
+		sort.Strings(sorted)
+		return strings.Join(sorted, ",")
+	}
+
+	// Group segments by their node set
+	nodeSetGroups := make(map[string][]int) // nodeSetKey -> list of segment indices
+
+	for i, seg := range segments {
+		key := makeNodeSetKey(seg.ConnectedNodes)
+		nodeSetGroups[key] = append(nodeSetGroups[key], i)
+	}
+
+	// Track which segments have been merged
+	merged := make(map[int]bool)
+	var result []NetworkSegment
+	nextID := 0
+
+	// Process each node set group
+	for _, indices := range nodeSetGroups {
+		if len(indices) == 1 {
+			// Only one segment with this node set, keep as-is
+			continue
+		}
+
+		// Multiple segments share this node set - merge them
+		mergedPrefixes := make(map[string]bool)
+		mergedEdgeInfo := make(map[string]*Edge)
+		var primaryInterface string
+		var maxSpeed int
+
+		for _, idx := range indices {
+			seg := segments[idx]
+			merged[idx] = true
+
+			// Collect all prefixes
+			for _, prefix := range seg.NetworkPrefixes {
+				if prefix != "" {
+					mergedPrefixes[prefix] = true
+				}
+			}
+
+			// Collect all edges (prefer edges with more information)
+			for nodeID, edge := range seg.EdgeInfo {
+				if existing, exists := mergedEdgeInfo[nodeID]; exists {
+					// Node already has an edge, keep the better one
+					keepNew := false
+
+					if edge.LocalInterface != "" && existing.LocalInterface == "" {
+						keepNew = true
+					} else if len(edge.LocalPrefixes) > len(existing.LocalPrefixes) {
+						keepNew = true
+					} else if len(edge.RemotePrefixes) > len(existing.RemotePrefixes) {
+						keepNew = true
+					}
+
+					if keepNew {
+						mergedEdgeInfo[nodeID] = edge
+					}
+				} else {
+					mergedEdgeInfo[nodeID] = edge
+				}
+			}
+
+			// Select primary interface (highest effective speed, prefer wired over WiFi)
+			ifaceSpeed := getEffectiveSpeed(0, seg.Interface) // Get speed from edges
+			// Find the highest speed for this interface from EdgeInfo
+			for _, edge := range seg.EdgeInfo {
+				localSpeed := getEffectiveSpeed(edge.LocalSpeed, edge.LocalInterface)
+				remoteSpeed := getEffectiveSpeed(edge.RemoteSpeed, edge.RemoteInterface)
+				if edge.LocalInterface == seg.Interface && localSpeed > ifaceSpeed {
+					ifaceSpeed = localSpeed
+				}
+				if edge.RemoteInterface == seg.Interface && remoteSpeed > ifaceSpeed {
+					ifaceSpeed = remoteSpeed
+				}
+			}
+
+			// Prefer this interface if:
+			// 1. It has higher speed, OR
+			// 2. Same speed but this one is wired (not wl*)
+			if primaryInterface == "" {
+				primaryInterface = seg.Interface
+				maxSpeed = ifaceSpeed
+			} else {
+				takeNew := false
+				if ifaceSpeed > maxSpeed {
+					takeNew = true
+				} else if ifaceSpeed == maxSpeed {
+					// Same speed, prefer wired over WiFi
+					currentIsWifi := strings.Contains(primaryInterface, "wl")
+					newIsWifi := strings.Contains(seg.Interface, "wl")
+					if currentIsWifi && !newIsWifi {
+						takeNew = true
+					}
+				}
+				if takeNew {
+					primaryInterface = seg.Interface
+					maxSpeed = ifaceSpeed
+				}
+			}
+		}
+
+		// Convert merged prefixes to sorted list
+		prefixList := make([]string, 0, len(mergedPrefixes))
+		for prefix := range mergedPrefixes {
+			prefixList = append(prefixList, prefix)
+		}
+		sort.Strings(prefixList)
+
+		// Get node list (already sorted since all segments have same nodes)
+		nodeList := segments[indices[0]].ConnectedNodes
+
+		// Primary prefix for backward compatibility
+		primaryPrefix := ""
+		if len(prefixList) > 0 {
+			primaryPrefix = prefixList[0]
+		}
+
+		result = append(result, NetworkSegment{
+			ID:              fmt.Sprintf("segment_%d", nextID),
+			Interface:       primaryInterface,
+			NetworkPrefix:   primaryPrefix,
+			NetworkPrefixes: prefixList,
+			ConnectedNodes:  nodeList,
+			EdgeInfo:        mergedEdgeInfo,
+		})
+		nextID++
+	}
+
+	// Add segments that weren't merged (unique node sets)
+	for i, seg := range segments {
+		if !merged[i] {
+			result = append(result, NetworkSegment{
+				ID:              fmt.Sprintf("segment_%d", nextID),
+				Interface:       seg.Interface,
+				NetworkPrefix:   seg.NetworkPrefix,
+				NetworkPrefixes: seg.NetworkPrefixes,
+				ConnectedNodes:  seg.ConnectedNodes,
+				EdgeInfo:        seg.EdgeInfo,
 			})
 			nextID++
 		}

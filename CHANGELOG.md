@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Added
+- **Multi-Prefix Network Segments**: Network segments now support multiple network prefixes (both IPv4 and IPv6) per segment. This correctly handles scenarios where hosts have multiple interfaces (wired + WiFi) connected to the same physical network, each with multiple addressing schemes.
+  - New `NetworkPrefixes []string` field in NetworkSegment (keeps `NetworkPrefix` for backward compatibility)
+  - Segments with identical node sets but different prefixes are automatically merged
+  - Primary interface selection: highest speed, prefers wired over WiFi
+  - WiFi interfaces with Speed=0 default to 100 Mbps
+  - DOT export shows first 3 prefixes (+ "..." if more)
+  - PlantUML nwdiag shows all prefixes comma-separated
+  - Fixes duplicate segment detection in multi-homed scenarios
+
 ### Fixed
 - **PlantUML nwdiag Excessive P2P Networks**: Fixed 37 P2P networks appearing instead of expected 5. Root cause was incorrect local node interface detection when marking segment edges as processed. The local node's interface was being set to segment.Interface (most common interface among members, often a bridge), but local node may use a different interface. Now correctly extracts local node interface from EdgeInfo.LocalInterface. Result: Clean topology with only legitimate P2P networks (RDMA links and non-segment connections).
 - **PlantUML nwdiag Speed Calculation**: Fixed segment speed showing maximum instead of most common speed. Bridge interfaces often report higher speeds (10 Gbps) than underlying physical interfaces (1 Gbps), causing segments to display incorrect speeds. Now uses mode (most common speed) for more accurate segment representation.

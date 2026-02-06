@@ -20,10 +20,11 @@ func ExportNwdiag(nodes map[string]*graph.Node, edges map[string]map[string][]*g
 
 	// Export each network segment
 	for _, segment := range segments {
-		// Determine network name and address
+		// Determine network name from first prefix (or interface if no prefix)
 		networkName := segment.Interface
-		if segment.NetworkPrefix != "" {
-			networkName = strings.ReplaceAll(segment.NetworkPrefix, "/", "_")
+		if len(segment.NetworkPrefixes) > 0 {
+			// Use first prefix for network name
+			networkName = strings.ReplaceAll(segment.NetworkPrefixes[0], "/", "_")
 			networkName = strings.ReplaceAll(networkName, ":", "_")
 			networkName = strings.ReplaceAll(networkName, ".", "_")
 		}
@@ -35,8 +36,9 @@ func ExportNwdiag(nodes map[string]*graph.Node, edges map[string]map[string][]*g
 		for _, nodeID := range segment.ConnectedNodes {
 			if edge, ok := segment.EdgeInfo[nodeID]; ok {
 				// For segments, RemoteSpeed is the speed of the remote node's interface on this segment
-				if edge.RemoteSpeed > 0 {
-					speeds[edge.RemoteSpeed]++
+				speed := getEffectiveSpeed(edge.RemoteSpeed, edge.RemoteInterface)
+				if speed > 0 {
+					speeds[speed]++
 				}
 				if edge.RemoteRDMADevice != "" {
 					hasRDMA = true
@@ -59,12 +61,13 @@ func ExportNwdiag(nodes map[string]*graph.Node, edges map[string]map[string][]*g
 
 		sb.WriteString(fmt.Sprintf("  network %s {\n", networkName))
 
-		// Add network address with speed if available
-		if segment.NetworkPrefix != "" {
+		// Add network address with all prefixes and speed
+		if len(segment.NetworkPrefixes) > 0 {
+			prefixStr := strings.Join(segment.NetworkPrefixes, ", ")
 			if segmentSpeed > 0 {
-				sb.WriteString(fmt.Sprintf("    address = \"%s (%d Mbps)\"\n", segment.NetworkPrefix, segmentSpeed))
+				sb.WriteString(fmt.Sprintf("    address = \"%s (%d Mbps)\"\n", prefixStr, segmentSpeed))
 			} else {
-				sb.WriteString(fmt.Sprintf("    address = \"%s\"\n", segment.NetworkPrefix))
+				sb.WriteString(fmt.Sprintf("    address = \"%s\"\n", prefixStr))
 			}
 		} else if segmentSpeed > 0 {
 			sb.WriteString(fmt.Sprintf("    address = \"%d Mbps\"\n", segmentSpeed))
@@ -317,6 +320,19 @@ func ExportNwdiag(nodes map[string]*graph.Node, edges map[string]map[string][]*g
 	sb.WriteString("@enduml\n")
 
 	return sb.String()
+}
+
+// getEffectiveSpeed returns the effective speed for an interface
+// WiFi interfaces often report 0, so we default them to 100 Mbps
+func getEffectiveSpeed(speed int, interfaceName string) int {
+	if speed == 0 {
+		// WiFi interfaces (wlan, wlp, wl*) typically report 0
+		if strings.Contains(interfaceName, "wl") {
+			return 100 // Default WiFi to 100 Mbps
+		}
+		return 100 // Default any unknown speed to 100 Mbps
+	}
+	return speed
 }
 
 // makeEdgeKey creates a canonical key for an edge (order-independent)
