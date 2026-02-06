@@ -238,18 +238,18 @@ $ curl -s http://localhost:6469/graph.nwdiag | grep -c "network p2p_"
 
 27 spurious p2p networks created!
 
-### After Fix
+### After Fix (with legitimate P2P)
 ```bash
 $ curl -s http://localhost:6469/graph.nwdiag | grep -c "network p2p_"
-0
+1
 ```
 
-✅ Zero p2p networks (correct, since all edges are within segment_0)
+✅ One legitimate p2p network shown (br10↔vlan10 on different VLAN)
 
 ### nwdiag Output
 
 **Before**: 160+ lines with 27 bogus p2p blocks  
-**After**: 14 lines with just 1 segment block
+**After**: 20 lines with segment + legitimate P2P networks
 
 ```plantuml
 @startuml
@@ -264,9 +264,66 @@ nwdiag {
     akanevsk_desk [description = "akanevsk-desk", color = "#90EE90"];
     srv [address = "fe80::... (enp0s31f6, 1000 Mbps, rxe0)", description = "srv"];
   }
+  network p2p_1 {
+    address = "10.0.3.0/24, fd66:1f7:10::/64 (1000 Mbps)"
+    color = "#ADD8E6"
+    ad [address = "fe80::bdbd:936a:be67:de06 (br10)", description = "ad"];
+    srv [address = "fe80::6998:1c78:6fa2:d1f3 (vlan10)", description = "srv"];
+  }
 }
 @enduml
 ```
+
+Note how P2P network now shows actual network prefixes in the address field, providing complete network information.
+
+## Additional Enhancement: P2P Network Prefix Display
+
+After fixing the spurious P2P networks, an additional enhancement was made to show actual network prefixes in the P2P address field.
+
+### Problem
+P2P networks showed generic labels without network information:
+```
+address = "P2P (1000 Mbps)"
+```
+
+But the edge data contains `LocalPrefixes` and `RemotePrefixes` that identify the actual network.
+
+### Solution
+Collect all unique prefixes from both sides of the P2P link and include them in the address field:
+
+```go
+// Collect all unique prefixes from this P2P link
+prefixSet := make(map[string]bool)
+for _, prefix := range edge.LocalPrefixes {
+    prefixSet[prefix] = true
+}
+for _, prefix := range edge.RemotePrefixes {
+    prefixSet[prefix] = true
+}
+
+// Sort prefixes for deterministic output
+var prefixes []string
+for prefix := range prefixSet {
+    prefixes = append(prefixes, prefix)
+}
+sort.Strings(prefixes)
+
+// Show prefixes + speed
+sb.WriteString(fmt.Sprintf("    address = \"%s (%d Mbps)\"\n", 
+                           strings.Join(prefixes, ", "), maxSpeed))
+```
+
+### Result
+**Before**: `address = "P2P (1000 Mbps)"`  
+**After**: `address = "10.0.3.0/24, fd66:1f7:10::/64 (1000 Mbps)"`
+
+This provides complete network identification, making it clear which VLAN or network the P2P link uses.
+
+### Benefits
+1. **Network identification**: Immediately see which network/VLAN the P2P link uses
+2. **Consistency**: P2P networks now have same level of detail as segments
+3. **Documentation**: Diagram itself documents network architecture
+4. **Troubleshooting**: Easier to identify misconfigured or unexpected P2P links
 
 Clean and correct!
 

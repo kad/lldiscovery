@@ -306,8 +306,36 @@ func ExportNwdiag(nodes map[string]*graph.Node, edges map[string]map[string][]*g
 
 				sb.WriteString(fmt.Sprintf("  network %s {\n", peerNetworkName))
 
-				// Add address with speed for peer network
-				if maxSpeed > 0 {
+				// Collect all unique prefixes from this P2P link
+				prefixSet := make(map[string]bool)
+				for _, prefix := range edge.LocalPrefixes {
+					prefixSet[prefix] = true
+				}
+				for _, prefix := range edge.RemotePrefixes {
+					prefixSet[prefix] = true
+				}
+
+				// Sort prefixes for deterministic output
+				var prefixes []string
+				for prefix := range prefixSet {
+					prefixes = append(prefixes, prefix)
+				}
+				sort.Strings(prefixes)
+
+				// Add address with prefixes and speed for peer network
+				if len(prefixes) > 0 {
+					// Show prefixes + speed
+					sb.WriteString(fmt.Sprintf("    address = \"%s", strings.Join(prefixes, ", ")))
+					if maxSpeed > 0 {
+						sb.WriteString(fmt.Sprintf(" (%d Mbps", maxSpeed))
+						if hasRDMA {
+							sb.WriteString(", RDMA")
+						}
+						sb.WriteString(")")
+					}
+					sb.WriteString("\"\n")
+				} else if maxSpeed > 0 {
+					// Fallback to just speed if no prefixes available
 					sb.WriteString(fmt.Sprintf("    address = \"P2P (%d Mbps", maxSpeed))
 					if hasRDMA {
 						sb.WriteString(", RDMA")
