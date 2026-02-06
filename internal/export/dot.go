@@ -154,8 +154,11 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 								segmentEdgeMap[key2] = make(map[string]bool)
 							}
 
-							// Mark this edge on these interfaces as part of segment
+							// Mark BOTH interfaces on BOTH directions
+							// This ensures we catch edges regardless of which node is src/dst
 							segmentEdgeMap[key1][interfaceA] = true
+							segmentEdgeMap[key1][interfaceB] = true
+							segmentEdgeMap[key2][interfaceA] = true
 							segmentEdgeMap[key2][interfaceB] = true
 						}
 					}
