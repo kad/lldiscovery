@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Added
+- **Deterministic Graph Export**: All graph export formats (DOT, nwdiag, JSON) now produce deterministic, sorted output. Node IDs, interface names, and edge pairs are sorted alphabetically before iteration, ensuring identical output for identical input across multiple runs. This makes exports reproducible, version-control friendly, and easier to compare/debug. No performance impact on typical topologies.
 - **Multi-Prefix Network Segments**: Network segments now support multiple network prefixes (both IPv4 and IPv6) per segment. This correctly handles scenarios where hosts have multiple interfaces (wired + WiFi) connected to the same physical network, each with multiple addressing schemes.
   - New `NetworkPrefixes []string` field in NetworkSegment (keeps `NetworkPrefix` for backward compatibility)
   - Segments with identical node sets but different prefixes are automatically merged

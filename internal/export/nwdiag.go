@@ -2,6 +2,7 @@ package export
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"kad.name/lldiscovery/internal/graph"
@@ -177,7 +178,15 @@ func ExportNwdiag(nodes map[string]*graph.Node, edges map[string]map[string][]*g
 		}
 
 		// Then populate interfaces for all nodes
-		for nodeID, edge := range segment.EdgeInfo {
+		// Sort node IDs for deterministic processing
+		var edgeInfoNodeIDs []string
+		for nodeID := range segment.EdgeInfo {
+			edgeInfoNodeIDs = append(edgeInfoNodeIDs, nodeID)
+		}
+		sort.Strings(edgeInfoNodeIDs)
+		
+		for _, nodeID := range edgeInfoNodeIDs {
+			edge := segment.EdgeInfo[nodeID]
 			if edge.RemoteInterface != "" {
 				nodeInterfaces[nodeID] = edge.RemoteInterface
 			} else if edge.LocalInterface != "" {
@@ -226,8 +235,26 @@ func ExportNwdiag(nodes map[string]*graph.Node, edges map[string]map[string][]*g
 	}
 
 	peerNetworkIdx := 1
-	for srcNodeID, dests := range edges {
-		for dstNodeID, edgeList := range dests {
+	
+	// Sort source node IDs for deterministic processing
+	var srcNodeIDs []string
+	for srcNodeID := range edges {
+		srcNodeIDs = append(srcNodeIDs, srcNodeID)
+	}
+	sort.Strings(srcNodeIDs)
+	
+	for _, srcNodeID := range srcNodeIDs {
+		dests := edges[srcNodeID]
+		
+		// Sort destination node IDs
+		var dstNodeIDs []string
+		for dstNodeID := range dests {
+			dstNodeIDs = append(dstNodeIDs, dstNodeID)
+		}
+		sort.Strings(dstNodeIDs)
+		
+		for _, dstNodeID := range dstNodeIDs {
+			edgeList := dests[dstNodeID]
 			if len(edgeList) == 0 {
 				continue
 			}

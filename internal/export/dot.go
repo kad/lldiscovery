@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"kad.name/lldiscovery/internal/graph"
@@ -73,7 +74,15 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 			nodeInterfaces := make(map[string][]string) // nodeID -> list of interface names
 
 			// Collect interface information from EdgeInfo
-			for nodeID, edgeInfo := range segment.EdgeInfo {
+			// Sort node IDs for deterministic processing
+			var edgeInfoNodeIDs []string
+			for nodeID := range segment.EdgeInfo {
+				edgeInfoNodeIDs = append(edgeInfoNodeIDs, nodeID)
+			}
+			sort.Strings(edgeInfoNodeIDs)
+			
+			for _, nodeID := range edgeInfoNodeIDs {
+				edgeInfo := segment.EdgeInfo[nodeID]
 				if edgeInfo.RemoteInterface != "" {
 					// This is the interface the remote node uses
 					nodeInterfaces[nodeID] = append(nodeInterfaces[nodeID], edgeInfo.RemoteInterface)
@@ -82,7 +91,8 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 
 			// Try to identify the reference/local node by finding LocalInterface
 			var referenceInterfaces []string
-			for _, edgeInfo := range segment.EdgeInfo {
+			for _, nodeID := range edgeInfoNodeIDs {
+				edgeInfo := segment.EdgeInfo[nodeID]
 				if edgeInfo.LocalInterface != "" {
 					// Collect all unique local interfaces
 					found := false
@@ -103,7 +113,15 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 				if len(nodeInterfaces[nodeID]) == 0 {
 					// No interface info from EdgeInfo, check node's interfaces against segment prefixes
 					if node, exists := nodes[nodeID]; exists {
-						for ifaceName, ifaceDetails := range node.Interfaces {
+						// Sort interface names for deterministic processing
+						var ifaceNames []string
+						for ifaceName := range node.Interfaces {
+							ifaceNames = append(ifaceNames, ifaceName)
+						}
+						sort.Strings(ifaceNames)
+						
+						for _, ifaceName := range ifaceNames {
+							ifaceDetails := node.Interfaces[ifaceName]
 							// Check if this interface has any of the segment's prefixes
 							for _, ifacePrefix := range ifaceDetails.GlobalPrefixes {
 								for _, segPrefix := range segment.NetworkPrefixes {
@@ -169,11 +187,29 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 
 	// First pass: collect which interfaces have connections
 	connectedInterfaces := make(map[string]map[string]bool) // [machineID][interface] -> true
-	for srcMachineID, dests := range edges {
+	
+	// Sort source machine IDs for deterministic processing
+	var srcMachineIDs []string
+	for srcMachineID := range edges {
+		srcMachineIDs = append(srcMachineIDs, srcMachineID)
+	}
+	sort.Strings(srcMachineIDs)
+	
+	for _, srcMachineID := range srcMachineIDs {
+		dests := edges[srcMachineID]
 		if connectedInterfaces[srcMachineID] == nil {
 			connectedInterfaces[srcMachineID] = make(map[string]bool)
 		}
-		for dstMachineID, edgeList := range dests {
+		
+		// Sort destination machine IDs
+		var dstMachineIDs []string
+		for dstMachineID := range dests {
+			dstMachineIDs = append(dstMachineIDs, dstMachineID)
+		}
+		sort.Strings(dstMachineIDs)
+		
+		for _, dstMachineID := range dstMachineIDs {
+			edgeList := dests[dstMachineID]
 			if connectedInterfaces[dstMachineID] == nil {
 				connectedInterfaces[dstMachineID] = make(map[string]bool)
 			}
@@ -185,7 +221,15 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 	}
 
 	// Generate machine subgraphs with interface nodes
-	for machineID, node := range nodes {
+	// Sort machine IDs for deterministic output
+	var machineIDs []string
+	for machineID := range nodes {
+		machineIDs = append(machineIDs, machineID)
+	}
+	sort.Strings(machineIDs)
+	
+	for _, machineID := range machineIDs {
+		node := nodes[machineID]
 		shortID := machineID
 		if len(shortID) > 8 {
 			shortID = shortID[:8]
@@ -205,13 +249,19 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 		}
 
 		// Create interface nodes inside the subgraph
-		hasInterfaces := false
-		for iface, details := range node.Interfaces {
-			// Only show interfaces that have connections
-			if !connectedInterfaces[machineID][iface] {
-				continue
+		// Sort interface names for deterministic output
+		var ifaceNames []string
+		for iface := range node.Interfaces {
+			// Only include interfaces that have connections
+			if connectedInterfaces[machineID][iface] {
+				ifaceNames = append(ifaceNames, iface)
 			}
-			hasInterfaces = true
+		}
+		sort.Strings(ifaceNames)
+		
+		hasInterfaces := len(ifaceNames) > 0
+		for _, iface := range ifaceNames {
+			details := node.Interfaces[iface]
 
 			// Build interface node ID
 			ifaceNodeID := fmt.Sprintf("%s__%s", machineID, iface)
@@ -309,7 +359,15 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 				
 				// Then, find any other interfaces with matching prefixes
 				if node, exists := nodes[nodeID]; exists {
-					for ifaceName, ifaceDetails := range node.Interfaces {
+					// Sort interface names for deterministic processing
+					var ifaceNames []string
+					for ifaceName := range node.Interfaces {
+						ifaceNames = append(ifaceNames, ifaceName)
+					}
+					sort.Strings(ifaceNames)
+					
+					for _, ifaceName := range ifaceNames {
+						ifaceDetails := node.Interfaces[ifaceName]
 						// Skip if already added from EdgeInfo
 						alreadyAdded := false
 						for _, added := range nodeInterfaces {
@@ -349,6 +407,9 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 						break // Just use first one as fallback
 					}
 				}
+				
+				// Sort interfaces for deterministic output
+				sort.Strings(nodeInterfaces)
 				
 				// Connect segment to each interface this node uses
 				for _, ifaceName := range nodeInterfaces {
@@ -421,8 +482,26 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 	// Add edges between interface nodes (excluding those in segments on matching interfaces)
 	sb.WriteString("\n  // Connections between interfaces\n")
 	edgesAdded := make(map[string]bool) // Track to avoid showing both directions of same edge
-	for srcMachineID, dests := range edges {
-		for dstMachineID, edgeList := range dests {
+	
+	// Sort source machine IDs for deterministic edge order
+	srcMachineIDs = nil // reuse variable
+	for srcMachineID := range edges {
+		srcMachineIDs = append(srcMachineIDs, srcMachineID)
+	}
+	sort.Strings(srcMachineIDs)
+	
+	for _, srcMachineID := range srcMachineIDs {
+		dests := edges[srcMachineID]
+		
+		// Sort destination machine IDs
+		var dstMachineIDs []string
+		for dstMachineID := range dests {
+			dstMachineIDs = append(dstMachineIDs, dstMachineID)
+		}
+		sort.Strings(dstMachineIDs)
+		
+		for _, dstMachineID := range dstMachineIDs {
+			edgeList := dests[dstMachineID]
 			for _, edge := range edgeList {
 				// Check if this edge is part of a segment (if segments are enabled)
 				if len(segments) > 0 {
