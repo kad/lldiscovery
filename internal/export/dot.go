@@ -502,6 +502,16 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 		
 		for _, dstMachineID := range dstMachineIDs {
 			edgeList := dests[dstMachineID]
+			
+			// Sort edges by local interface name for deterministic output
+			sort.Slice(edgeList, func(i, j int) bool {
+				if edgeList[i].LocalInterface != edgeList[j].LocalInterface {
+					return edgeList[i].LocalInterface < edgeList[j].LocalInterface
+				}
+				// If local interfaces are the same, sort by remote interface
+				return edgeList[i].RemoteInterface < edgeList[j].RemoteInterface
+			})
+			
 			for _, edge := range edgeList {
 				// Check if this edge is part of a segment (if segments are enabled)
 				if len(segments) > 0 {

@@ -28,8 +28,11 @@ Added sorting to all map iterations in export code:
 1. **Node ordering**: Sort machine IDs before iterating
 2. **Interface ordering**: Sort interface names within each node
 3. **Edge ordering**: Sort source and destination machine IDs
-4. **Segment EdgeInfo**: Sort node IDs when processing segment edges
-5. **Interface collection**: Sort interface names when checking prefixes
+4. **Edge list ordering**: Within each node pair, sort edges by local interface name, then remote interface name
+5. **Segment EdgeInfo**: Sort node IDs when processing segment edges
+6. **Interface collection**: Sort interface names when checking prefixes
+
+This ensures that when a node pair has multiple edges (e.g., wired + WiFi, or multiple RDMA devices), the edges always appear in the same order.
 
 ### Changes in `internal/export/nwdiag.go`
 
@@ -58,6 +61,17 @@ for _, machineID := range machineIDs {
     node := nodes[machineID]
     // Process node - ORDER PREDICTABLE
 }
+```
+
+**Edge list sorting:**
+```go
+// Sort edges within each node pair
+sort.Slice(edgeList, func(i, j int) bool {
+    if edgeList[i].LocalInterface != edgeList[j].LocalInterface {
+        return edgeList[i].LocalInterface < edgeList[j].LocalInterface
+    }
+    return edgeList[i].RemoteInterface < edgeList[j].RemoteInterface
+})
 ```
 
 ## Benefits
@@ -97,11 +111,12 @@ subgraph cluster_a68f2602... {
 "dd062108__wlp0s20f3" [label="wlp0s20f3\n..."];
 ```
 
-**Edges sorted by node pairs:**
+**Edges sorted by node pairs AND interfaces:**
 ```dot
-"30559dce__eno1" -- "4c8709ea__enp1s0f0" [...]
-"30559dce__eno1" -- "a68f2602__eno1" [...]
-"30559dce__eno1" -- "dd062108__enp0s31f6" [...]
+// Multiple edges between same nodes always in same order
+"srv__eno1" -- "fork__eno1" [...]        // wired to wired (eno1 < wlp58s0)
+"srv__wlp58s0" -- "fork__eno1" [...]     // WiFi to wired
+"srv__wlp58s0" -- "fork__wlp0s20f3" [...] // WiFi to WiFi
 ```
 
 ### nwdiag Export
