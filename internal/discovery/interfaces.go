@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/vishvananda/netlink"
@@ -237,29 +239,109 @@ func getRDMASysImageGUID(rdmaDevice string) string {
 }
 
 // getLinkSpeed returns the link speed in Mbps by reading from /sys/class/net/<iface>/speed
+// For WiFi interfaces, it attempts to use iw to get the actual link rate
 // Returns 0 if speed cannot be determined
 func getLinkSpeed(ifaceName string) int {
+	// First try sysfs
 	speedPath := fmt.Sprintf("/sys/class/net/%s/speed", ifaceName)
 	data, err := os.ReadFile(speedPath)
+	if err == nil {
+		speedStr := strings.TrimSpace(string(data))
+		var speed int
+		_, err = fmt.Sscanf(speedStr, "%d", &speed)
+		if err == nil && speed > 0 {
+			// Valid speed from sysfs
+			return speed
+		}
+	}
+	
+	// If sysfs didn't work (common for WiFi), try WiFi-specific detection
+	// Check if this looks like a WiFi interface
+	if strings.Contains(ifaceName, "wl") || strings.Contains(ifaceName, "wifi") {
+		if speed := getWiFiSpeed(ifaceName); speed > 0 {
+			return speed
+		}
+	}
+	
+	// No speed could be determined
+	return 0
+}
+
+// getWiFiSpeed attempts to get the actual WiFi link speed using the iw tool
+// Returns 0 if the speed cannot be determined or if iw is not available
+func getWiFiSpeed(ifaceName string) int {
+	// Try common locations for iw tool
+	iwPaths := []string{
+		"/usr/sbin/iw",
+		"/sbin/iw",
+		"/usr/bin/iw",
+		"/bin/iw",
+	}
+	
+	var iwPath string
+	for _, path := range iwPaths {
+		if _, err := os.Stat(path); err == nil {
+			iwPath = path
+			break
+		}
+	}
+	
+	if iwPath == "" {
+		// Try PATH
+		if path, err := exec.LookPath("iw"); err == nil {
+			iwPath = path
+		} else {
+			return 0
+		}
+	}
+	
+	// Run: iw dev <iface> link
+	cmd := exec.Command(iwPath, "dev", ifaceName, "link")
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		// Speed file doesn't exist or can't be read (e.g., for VPN interfaces, down interfaces)
 		return 0
 	}
-
-	speedStr := strings.TrimSpace(string(data))
-	var speed int
-	_, err = fmt.Sscanf(speedStr, "%d", &speed)
-	if err != nil {
-		return 0
+	
+	// Parse output for tx/rx bitrate
+	// Format examples:
+	//   "tx bitrate: 1200.9 MBit/s 80MHz HE-MCS 11 HE-NSS 2 HE-GI 0 HE-DCM 0"
+	//   "rx bitrate: 960.7 MBit/s 80MHz HE-MCS 9 HE-NSS 2 HE-GI 0 HE-DCM 0"
+	
+	var txSpeed, rxSpeed float64
+	lines := strings.Split(string(output), "\n")
+	
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		
+		if strings.HasPrefix(line, "tx bitrate:") {
+			fields := strings.Fields(line)
+			// fields: ["tx", "bitrate:", "1200.9", "MBit/s", ...]
+			if len(fields) >= 3 {
+				speedStr := fields[2]
+				speed, err := strconv.ParseFloat(speedStr, 64)
+				if err == nil {
+					txSpeed = speed
+				}
+			}
+		}
+		
+		if strings.HasPrefix(line, "rx bitrate:") {
+			fields := strings.Fields(line)
+			if len(fields) >= 3 {
+				speedStr := fields[2]
+				speed, err := strconv.ParseFloat(speedStr, 64)
+				if err == nil {
+					rxSpeed = speed
+				}
+			}
+		}
 	}
-
-	// /sys/class/net/*/speed returns speed in Mbps
-	// Handle invalid values (like -1 for unknown speed)
-	if speed < 0 {
-		return 0
+	
+	// Return the higher of TX/RX speeds (as link speed)
+	if txSpeed > rxSpeed {
+		return int(txSpeed)
 	}
-
-	return speed
+	return int(rxSpeed)
 }
 
 // GetRDMADevices returns a list of all RDMA devices and their parent network interfaces
