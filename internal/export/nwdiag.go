@@ -165,62 +165,78 @@ func ExportNwdiag(nodes map[string]*graph.Node, edges map[string]map[string][]*g
 		sb.WriteString("  }\n")
 
 		// Mark edges in this segment as processed
-		// Build a map of which interface each node uses in this segment
-		nodeInterfaces := make(map[string]string)
+		// We need to mark ACTUAL edges between segment members, not all possible pairs
+		// The EdgeInfo contains edges from the local node to other segment members
+		// We also need to check the global edges map for edges between non-local segment members
 
-		// First, find the local node's interface from any EdgeInfo entry's LocalInterface
-		var localNodeInterface string
-		for _, edge := range segment.EdgeInfo {
-			if edge.LocalInterface != "" {
-				localNodeInterface = edge.LocalInterface
+		// First, identify the local node (the one NOT in EdgeInfo but in ConnectedNodes)
+		localNodeID := ""
+		for _, nodeID := range segment.ConnectedNodes {
+			found := false
+			for edgeNodeID := range segment.EdgeInfo {
+				if edgeNodeID == nodeID {
+					found = true
+					break
+				}
+			}
+			if !found {
+				localNodeID = nodeID
 				break
 			}
 		}
 
-		// Then populate interfaces for all nodes
-		// Sort node IDs for deterministic processing
-		var edgeInfoNodeIDs []string
-		for nodeID := range segment.EdgeInfo {
-			edgeInfoNodeIDs = append(edgeInfoNodeIDs, nodeID)
-		}
-		sort.Strings(edgeInfoNodeIDs)
-		
-		for _, nodeID := range edgeInfoNodeIDs {
-			edge := segment.EdgeInfo[nodeID]
-			if edge.RemoteInterface != "" {
-				nodeInterfaces[nodeID] = edge.RemoteInterface
-			} else if edge.LocalInterface != "" {
-				// This is the local node's own entry (empty RemoteInterface)
-				nodeInterfaces[nodeID] = edge.LocalInterface
+		// Mark edges from segment EdgeInfo (local node to remote nodes)
+		for remoteNodeID, edge := range segment.EdgeInfo {
+			if localNodeID != "" && edge.LocalInterface != "" && edge.RemoteInterface != "" {
+				key := makeEdgeKeyWithInterfaces(localNodeID, remoteNodeID, edge.LocalInterface, edge.RemoteInterface)
+				processedEdges[key] = true
 			}
 		}
 
-		// For nodes without EdgeInfo entry, try to identify the local node
-		// The local node is the one not in EdgeInfo but in ConnectedNodes
+		// Also mark edges between segment members that share the segment's network prefixes
+		// Only edges that are part of THIS segment should be marked
+		segmentNodes := make(map[string]bool)
 		for _, nodeID := range segment.ConnectedNodes {
-			if nodeInterfaces[nodeID] == "" {
-				// Check if this could be the local node (has edges to other segment members)
-				if localNodeInterface != "" {
-					nodeInterfaces[nodeID] = localNodeInterface
-				} else {
-					// Fallback to segment interface
-					nodeInterfaces[nodeID] = segment.Interface
-				}
-			}
+			segmentNodes[nodeID] = true
 		}
 
-		// Mark all pairs in this segment with their interfaces as processed
-		for i, nodeA := range segment.ConnectedNodes {
-			for j, nodeB := range segment.ConnectedNodes {
-				if i >= j {
-					continue
-				}
-				ifaceA := nodeInterfaces[nodeA]
-				ifaceB := nodeInterfaces[nodeB]
-				if ifaceA != "" && ifaceB != "" {
-					// Mark with canonical key (order-independent)
-					key := makeEdgeKeyWithInterfaces(nodeA, nodeB, ifaceA, ifaceB)
-					processedEdges[key] = true
+		// Create a set of segment prefixes for quick lookup
+		segmentPrefixes := make(map[string]bool)
+		for _, prefix := range segment.NetworkPrefixes {
+			segmentPrefixes[prefix] = true
+		}
+
+		for srcNodeID := range segmentNodes {
+			if destMap, ok := edges[srcNodeID]; ok {
+				for dstNodeID, edgeList := range destMap {
+					if segmentNodes[dstNodeID] {
+						// Both nodes are in the same segment
+						// But only mark edges that share the segment's network prefixes
+						for _, edge := range edgeList {
+							// Check if this edge shares any prefix with the segment
+							edgeInSegment := false
+							for _, localPrefix := range edge.LocalPrefixes {
+								if segmentPrefixes[localPrefix] {
+									edgeInSegment = true
+									break
+								}
+							}
+							if !edgeInSegment {
+								for _, remotePrefix := range edge.RemotePrefixes {
+									if segmentPrefixes[remotePrefix] {
+										edgeInSegment = true
+										break
+									}
+								}
+							}
+
+							// Only mark as processed if edge is part of this segment
+							if edgeInSegment {
+								key := makeEdgeKeyWithInterfaces(srcNodeID, dstNodeID, edge.LocalInterface, edge.RemoteInterface)
+								processedEdges[key] = true
+							}
+						}
+					}
 				}
 			}
 		}
@@ -235,24 +251,24 @@ func ExportNwdiag(nodes map[string]*graph.Node, edges map[string]map[string][]*g
 	}
 
 	peerNetworkIdx := 1
-	
+
 	// Sort source node IDs for deterministic processing
 	var srcNodeIDs []string
 	for srcNodeID := range edges {
 		srcNodeIDs = append(srcNodeIDs, srcNodeID)
 	}
 	sort.Strings(srcNodeIDs)
-	
+
 	for _, srcNodeID := range srcNodeIDs {
 		dests := edges[srcNodeID]
-		
+
 		// Sort destination node IDs
 		var dstNodeIDs []string
 		for dstNodeID := range dests {
 			dstNodeIDs = append(dstNodeIDs, dstNodeID)
 		}
 		sort.Strings(dstNodeIDs)
-		
+
 		for _, dstNodeID := range dstNodeIDs {
 			edgeList := dests[dstNodeID]
 			if len(edgeList) == 0 {

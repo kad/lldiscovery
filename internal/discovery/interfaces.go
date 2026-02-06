@@ -255,7 +255,7 @@ func getLinkSpeed(ifaceName string) int {
 			return speed
 		}
 	}
-	
+
 	// If sysfs didn't work (common for WiFi), try WiFi-specific detection
 	// Check if this looks like a WiFi interface
 	if strings.Contains(ifaceName, "wl") || strings.Contains(ifaceName, "wifi") {
@@ -263,7 +263,7 @@ func getLinkSpeed(ifaceName string) int {
 			return speed
 		}
 	}
-	
+
 	// No speed could be determined
 	return 0
 }
@@ -277,7 +277,7 @@ func getWiFiSpeed(ifaceName string) int {
 	if speed := getWiFiSpeedNative(ifaceName); speed > 0 {
 		return speed
 	}
-	
+
 	// Method 2: Fall back to iw command-line tool
 	return getWiFiSpeedIw(ifaceName)
 }
@@ -290,13 +290,13 @@ func getWiFiSpeedNative(ifaceName string) int {
 		return 0
 	}
 	defer client.Close()
-	
+
 	// Get all WiFi interfaces
 	interfaces, err := client.Interfaces()
 	if err != nil {
 		return 0
 	}
-	
+
 	// Find our interface
 	var targetIface *wifi.Interface
 	for _, iface := range interfaces {
@@ -305,25 +305,25 @@ func getWiFiSpeedNative(ifaceName string) int {
 			break
 		}
 	}
-	
+
 	if targetIface == nil {
 		return 0
 	}
-	
+
 	// Get station info (connected AP)
 	stations, err := client.StationInfo(targetIface)
 	if err != nil || len(stations) == 0 {
 		return 0
 	}
-	
+
 	// Use the first station (typically the connected AP)
 	station := stations[0]
-	
+
 	// Return the higher of TX/RX bitrate in Mbps
 	// Bitrate is in bits per second, convert to Mbps
 	rxMbps := int(station.ReceiveBitrate / 1000000)
 	txMbps := int(station.TransmitBitrate / 1000000)
-	
+
 	if txMbps > rxMbps {
 		return txMbps
 	}
@@ -339,7 +339,7 @@ func getWiFiSpeedIw(ifaceName string) int {
 		"/usr/bin/iw",
 		"/bin/iw",
 	}
-	
+
 	var iwPath string
 	for _, path := range iwPaths {
 		if _, err := os.Stat(path); err == nil {
@@ -347,7 +347,7 @@ func getWiFiSpeedIw(ifaceName string) int {
 			break
 		}
 	}
-	
+
 	if iwPath == "" {
 		// Try PATH
 		if path, err := exec.LookPath("iw"); err == nil {
@@ -356,25 +356,25 @@ func getWiFiSpeedIw(ifaceName string) int {
 			return 0
 		}
 	}
-	
+
 	// Run: iw dev <iface> link
 	cmd := exec.Command(iwPath, "dev", ifaceName, "link")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return 0
 	}
-	
+
 	// Parse output for tx/rx bitrate
 	// Format examples:
 	//   "tx bitrate: 1200.9 MBit/s 80MHz HE-MCS 11 HE-NSS 2 HE-GI 0 HE-DCM 0"
 	//   "rx bitrate: 960.7 MBit/s 80MHz HE-MCS 9 HE-NSS 2 HE-GI 0 HE-DCM 0"
-	
+
 	var txSpeed, rxSpeed float64
 	lines := strings.Split(string(output), "\n")
-	
+
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
-		
+
 		if strings.HasPrefix(line, "tx bitrate:") {
 			fields := strings.Fields(line)
 			// fields: ["tx", "bitrate:", "1200.9", "MBit/s", ...]
@@ -386,7 +386,7 @@ func getWiFiSpeedIw(ifaceName string) int {
 				}
 			}
 		}
-		
+
 		if strings.HasPrefix(line, "rx bitrate:") {
 			fields := strings.Fields(line)
 			if len(fields) >= 3 {
@@ -398,7 +398,7 @@ func getWiFiSpeedIw(ifaceName string) int {
 			}
 		}
 	}
-	
+
 	// Return the higher of TX/RX speeds (as link speed)
 	if txSpeed > rxSpeed {
 		return int(txSpeed)

@@ -641,7 +641,7 @@ func (g *Graph) GetNetworkSegments() []NetworkSegment {
 	// BUT: verify nodes are actually connected (not just using same interface name)
 	for ifaceName, nodeEdges := range remoteInterfaceGroups {
 		minNodes := 3
-		
+
 		// Special case: For 2-node groups, check if they share a network prefix
 		// This handles VLANs or segments with only 2 participating nodes
 		if len(nodeEdges) == 2 {
@@ -654,7 +654,7 @@ func (g *Graph) GetNetworkSegments() []NetworkSegment {
 					}
 				}
 			}
-			
+
 			// If both nodes have prefixes and share at least one, treat as segment
 			if len(nodePrefixes) == 2 && len(nodePrefixes[0]) > 0 && len(nodePrefixes[1]) > 0 {
 				hasSharedPrefix := false
@@ -674,7 +674,7 @@ func (g *Graph) GetNetworkSegments() []NetworkSegment {
 				}
 			}
 		}
-		
+
 		if len(nodeEdges) < minNodes {
 			continue // Need at least minNodes for a segment
 		}

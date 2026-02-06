@@ -80,7 +80,7 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 				edgeInfoNodeIDs = append(edgeInfoNodeIDs, nodeID)
 			}
 			sort.Strings(edgeInfoNodeIDs)
-			
+
 			for _, nodeID := range edgeInfoNodeIDs {
 				edgeInfo := segment.EdgeInfo[nodeID]
 				if edgeInfo.RemoteInterface != "" {
@@ -120,7 +120,7 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 						ifaceNames = append(ifaceNames, ifaceName)
 					}
 					sort.Strings(ifaceNames)
-					
+
 					for _, ifaceName := range ifaceNames {
 						// Skip if already added from EdgeInfo
 						alreadyAdded := false
@@ -133,7 +133,7 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 						if alreadyAdded {
 							continue
 						}
-						
+
 						ifaceDetails := node.Interfaces[ifaceName]
 						// Check if this interface has any of the segment's prefixes
 						for _, ifacePrefix := range ifaceDetails.GlobalPrefixes {
@@ -147,12 +147,12 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 						}
 					}
 				}
-				
+
 				// If still no interfaces found, use reference interfaces as fallback
 				if len(nodeInterfaces[nodeID]) == 0 && len(referenceInterfaces) > 0 {
 					nodeInterfaces[nodeID] = referenceInterfaces
 				}
-				
+
 				// Final fallback: use segment.Interface
 				if len(nodeInterfaces[nodeID]) == 0 {
 					nodeInterfaces[nodeID] = []string{segment.Interface}
@@ -199,27 +199,27 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 
 	// First pass: collect which interfaces have connections
 	connectedInterfaces := make(map[string]map[string]bool) // [machineID][interface] -> true
-	
+
 	// Sort source machine IDs for deterministic processing
 	var srcMachineIDs []string
 	for srcMachineID := range edges {
 		srcMachineIDs = append(srcMachineIDs, srcMachineID)
 	}
 	sort.Strings(srcMachineIDs)
-	
+
 	for _, srcMachineID := range srcMachineIDs {
 		dests := edges[srcMachineID]
 		if connectedInterfaces[srcMachineID] == nil {
 			connectedInterfaces[srcMachineID] = make(map[string]bool)
 		}
-		
+
 		// Sort destination machine IDs
 		var dstMachineIDs []string
 		for dstMachineID := range dests {
 			dstMachineIDs = append(dstMachineIDs, dstMachineID)
 		}
 		sort.Strings(dstMachineIDs)
-		
+
 		for _, dstMachineID := range dstMachineIDs {
 			edgeList := dests[dstMachineID]
 			if connectedInterfaces[dstMachineID] == nil {
@@ -239,7 +239,7 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 		machineIDs = append(machineIDs, machineID)
 	}
 	sort.Strings(machineIDs)
-	
+
 	for _, machineID := range machineIDs {
 		node := nodes[machineID]
 		shortID := machineID
@@ -270,7 +270,7 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 			}
 		}
 		sort.Strings(ifaceNames)
-		
+
 		hasInterfaces := len(ifaceNames) > 0
 		for _, iface := range ifaceNames {
 			details := node.Interfaces[iface]
@@ -363,12 +363,12 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 			for _, nodeID := range segment.ConnectedNodes {
 				// Collect all interfaces this node uses on this segment
 				var nodeInterfaces []string
-				
+
 				// First, get from EdgeInfo if available
 				if edge, hasEdge := segment.EdgeInfo[nodeID]; hasEdge && edge.RemoteInterface != "" {
 					nodeInterfaces = append(nodeInterfaces, edge.RemoteInterface)
 				}
-				
+
 				// Then, find any other interfaces with matching prefixes
 				if node, exists := nodes[nodeID]; exists {
 					// Sort interface names for deterministic processing
@@ -377,7 +377,7 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 						ifaceNames = append(ifaceNames, ifaceName)
 					}
 					sort.Strings(ifaceNames)
-					
+
 					for _, ifaceName := range ifaceNames {
 						ifaceDetails := node.Interfaces[ifaceName]
 						// Skip if already added from EdgeInfo
@@ -391,7 +391,7 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 						if alreadyAdded {
 							continue
 						}
-						
+
 						// Check if this interface has any of the segment's prefixes
 						hasMatchingPrefix := false
 						for _, ifacePrefix := range ifaceDetails.GlobalPrefixes {
@@ -405,13 +405,13 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 								break
 							}
 						}
-						
+
 						if hasMatchingPrefix {
 							nodeInterfaces = append(nodeInterfaces, ifaceName)
 						}
 					}
 				}
-				
+
 				// If no interfaces found, fall back to any connected interface
 				if len(nodeInterfaces) == 0 {
 					for iface := range connectedInterfaces[nodeID] {
@@ -419,23 +419,23 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 						break // Just use first one as fallback
 					}
 				}
-				
+
 				// Sort interfaces for deterministic output
 				sort.Strings(nodeInterfaces)
-				
+
 				// Connect segment to each interface this node uses
 				for _, ifaceName := range nodeInterfaces {
 					ifaceNodeID := fmt.Sprintf("%s__%s", nodeID, ifaceName)
-					
+
 					// Get edge info if available for this specific interface
 					var edgeLabel string
 					var penwidth float64 = 2.0
 					var styleAttr string = "style=solid, color=gray"
-					
+
 					if edge, hasEdge := segment.EdgeInfo[nodeID]; hasEdge && edge.RemoteInterface == ifaceName {
 						// Build edge label with address info
 						edgeLabel = edge.RemoteAddress
-						
+
 						// Add speed if available
 						if edge.RemoteSpeed > 0 {
 							edgeLabel += fmt.Sprintf("\\n%d Mbps", edge.RemoteSpeed)
@@ -445,15 +445,15 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 								edgeLabel += "\\n100 Mbps"
 							}
 						}
-						
+
 						// Add RDMA info if present
 						if edge.RemoteRDMADevice != "" {
 							edgeLabel += fmt.Sprintf("\\n[%s]", edge.RemoteRDMADevice)
 						}
-						
+
 						// Calculate line thickness based on speed
 						penwidth = calculatePenwidth(edge.RemoteSpeed)
-						
+
 						// RDMA segments get blue color
 						if edge.RemoteRDMADevice != "" && edge.LocalRDMADevice != "" {
 							styleAttr = fmt.Sprintf("style=solid, penwidth=%.1f, color=blue", penwidth)
@@ -478,7 +478,7 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 							}
 						}
 					}
-					
+
 					if edgeLabel != "" {
 						sb.WriteString(fmt.Sprintf("  \"%s\" -- \"%s\" [label=\"%s\", %s];\n",
 							segmentNodeID, ifaceNodeID, edgeLabel, styleAttr))
@@ -494,27 +494,27 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 	// Add edges between interface nodes (excluding those in segments on matching interfaces)
 	sb.WriteString("\n  // Connections between interfaces\n")
 	edgesAdded := make(map[string]bool) // Track to avoid showing both directions of same edge
-	
+
 	// Sort source machine IDs for deterministic edge order
 	srcMachineIDs = nil // reuse variable
 	for srcMachineID := range edges {
 		srcMachineIDs = append(srcMachineIDs, srcMachineID)
 	}
 	sort.Strings(srcMachineIDs)
-	
+
 	for _, srcMachineID := range srcMachineIDs {
 		dests := edges[srcMachineID]
-		
+
 		// Sort destination machine IDs
 		var dstMachineIDs []string
 		for dstMachineID := range dests {
 			dstMachineIDs = append(dstMachineIDs, dstMachineID)
 		}
 		sort.Strings(dstMachineIDs)
-		
+
 		for _, dstMachineID := range dstMachineIDs {
 			edgeList := dests[dstMachineID]
-			
+
 			// Sort edges by local interface name for deterministic output
 			sort.Slice(edgeList, func(i, j int) bool {
 				if edgeList[i].LocalInterface != edgeList[j].LocalInterface {
@@ -523,7 +523,7 @@ func GenerateDOTWithSegments(nodes map[string]*graph.Node, edges map[string]map[
 				// If local interfaces are the same, sort by remote interface
 				return edgeList[i].RemoteInterface < edgeList[j].RemoteInterface
 			})
-			
+
 			for _, edge := range edgeList {
 				// Check if this edge is part of a segment (if segments are enabled)
 				if len(segments) > 0 {
